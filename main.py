@@ -75,12 +75,27 @@ def main():
       testset, batch_size=64, shuffle=False, num_workers=2
    )
 
+   # Load ResNet50 and remove final classification layer
    print("==========ResNet==========")
    model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
 
-   # Remove final FC layer → output becomes 2048-dim feature vectors
+   '''
+   used llm to help understand/visualize this idea
+      Full ResNet50 architecture:
+      
+      Input (224x224x3)
+         ↓
+      [Convolutional layers + Residual blocks]  ← Extract visual features
+         ↓
+      Features (2048-dim)  ← This is what we want!
+         ↓
+      [Fully Connected Layer]  ← Maps 2048 → 1000 classes (ImageNet)
+         ↓
+      Output (1000 classes for ImageNet)  ← We don't need this!
+   '''
    children = list(model.children())
    model = torch.nn.Sequential(*children[:-1])
+   
    model.eval()
 
 
