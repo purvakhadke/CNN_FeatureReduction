@@ -48,9 +48,11 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import resnet50, ResNet50_Weights
 import numpy as np
+import os
 
+# get ResNet features layer
+def load_resnet_features():
 
-def main():
    # CIFAR-10 has 60000 32x32 color images across 10 classes
    classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -101,7 +103,7 @@ def main():
    print(f"Length of trainloader: {len(trainloader)}")   
    train_features_list = []
    train_labels_list = []
-   
+
    for i, (images, labels) in enumerate(trainloader):
       
       # since we're not training, we don't need to calculate the gradients for our outputs (alot is same as the tutorial)
@@ -114,17 +116,17 @@ def main():
       # Progress logging
       if i % 100 == 0:
          print(f"Doing Batch {i+1}/{len(trainloader)}")
-   
+
    train_features = np.concatenate(train_features_list)
    train_labels = np.concatenate(train_labels_list)
-   
+
    print(f"Training shape: {train_features.shape}")
 
    print(f"Length of testloader: {len(testloader)}")
-   
+
    test_features_list = []
    test_labels_list = []
-   
+
    for i, (images, labels) in enumerate(testloader):
       
       # Since we're not training, we don't need to calculate the gradients
@@ -134,10 +136,10 @@ def main():
       test_features_list.append(features.cpu().numpy())
       test_labels_list.append(labels.numpy())
       
-      # Progress logging
+      
       if i % 100 == 0:
          print(f"  Batch {i}/{len(testloader)}")
-   
+
    test_features = np.concatenate(test_features_list)
    test_labels = np.concatenate(test_labels_list)
    print(f"Test shape: {test_features.shape}")
@@ -151,8 +153,14 @@ def main():
       test_features=test_features,
       test_labels=test_labels
    )
-   print(f"\n✓ Features saved to {filename.replace('.tar.gz', '.npz')}")
 
+def main():
+   
+   if os.path.exists('cifar10-resnet50.npz'):
+      print(f"Skipping ResNet, features data file already exists")
+   else:
+      print(f"ResNet data doesnt exist, generateing features data now")
+      load_resnet_features()
 
 
 if __name__ == "__main__":
