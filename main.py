@@ -158,6 +158,16 @@ def main():
    
    if os.path.exists('cifar10-resnet50.npz'):
       print(f"Skipping ResNet, features data file already exists")
+      data = np.load('cifar10-resnet50.npz')
+      print(f"\nResNetFile contents:")
+      print(f"----Train----")
+      print(f"train_features: {data['train_features'].shape}")
+      print(f"train_labels: {data['train_labels'].shape}")
+      print(f"----Test-----")
+      print(f"test_features: {data['test_features'].shape}")
+      print(f"test_labels: {data['test_labels'].shape}")
+      data.close()
+
    else:
       print(f"ResNet data doesnt exist, generateing features data now")
       load_resnet_features()
