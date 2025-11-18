@@ -98,6 +98,61 @@ def main():
    
    model.eval()
 
+   print(f"Length of trainloader: {len(trainloader)}")   
+   train_features_list = []
+   train_labels_list = []
+   
+   for i, (images, labels) in enumerate(trainloader):
+      
+      # since we're not training, we don't need to calculate the gradients for our outputs (alot is same as the tutorial)
+      with torch.no_grad():
+         features = model(images).squeeze()
+      
+      train_features_list.append(features.cpu().numpy())
+      train_labels_list.append(labels.numpy())
+      
+      # Progress logging
+      if i % 100 == 0:
+         print(f"Doing Batch {i+1}/{len(trainloader)}")
+   
+   train_features = np.concatenate(train_features_list)
+   train_labels = np.concatenate(train_labels_list)
+   
+   print(f"Training shape: {train_features.shape}")
+
+   print(f"Length of testloader: {len(testloader)}")
+   
+   test_features_list = []
+   test_labels_list = []
+   
+   for i, (images, labels) in enumerate(testloader):
+      
+      # Since we're not training, we don't need to calculate the gradients
+      with torch.no_grad():
+         features = model(images).squeeze()
+      
+      test_features_list.append(features.cpu().numpy())
+      test_labels_list.append(labels.numpy())
+      
+      # Progress logging
+      if i % 100 == 0:
+         print(f"  Batch {i}/{len(testloader)}")
+   
+   test_features = np.concatenate(test_features_list)
+   test_labels = np.concatenate(test_labels_list)
+   print(f"Test shape: {test_features.shape}")
+
+   # download features into tar.dz file kike the HW
+   filename = 'cifar10-resnet50.tar.gz'
+   np.savez_compressed(
+      filename.replace('.tar.gz', ''),
+      train_features=train_features,
+      train_labels=train_labels,
+      test_features=test_features,
+      test_labels=test_labels
+   )
+   print(f"\n✓ Features saved to {filename.replace('.tar.gz', '.npz')}")
+
 
 
 if __name__ == "__main__":
