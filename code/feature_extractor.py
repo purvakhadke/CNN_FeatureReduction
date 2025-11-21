@@ -57,6 +57,13 @@ def load_resnet_features():
    classes = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
    # ResNet50 expects 224x224 images
+   # Reason is bc the original ResNet50 was pretrained on ImageNet which was 224x224x3
+         # After asking LLM to thouroghly teach me the core concept to ResNet and how it constructs the feature map, 
+         # there is a way for us to keep the image as 32x32x3 (without stretching it)
+         # but lets leave that refactoring until next week after the next lecture ab dimentionality reductions
+   
+   print("========== 1. Stretech Input Images to 224x224x3==========")
+   # 1. Resize/Strech/Upscale 32x32x3 image to 224x224x3
    transform = transforms.Compose([
       transforms.Resize(224),
       transforms.ToTensor(),
@@ -78,7 +85,9 @@ def load_resnet_features():
    )
 
    # Load ResNet50 and remove final classification layer
-   print("==========ResNet==========")
+   # 2. ResNet50 blackbox to give 2048D feature map, dont want classification layer
+   print("========== 2. ResNet BlackBox to get 2048D feature map==========")
+   # this is like a "black box", need to ask TA if this is OK, or id we need to implement ResNet on our own
    model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
 
    '''
@@ -121,7 +130,6 @@ def load_resnet_features():
    train_labels = np.concatenate(train_labels_list)
 
    print(f"Training shape: {train_features.shape}")
-
    print(f"Length of testloader: {len(testloader)}")
 
    test_features_list = []
@@ -145,6 +153,8 @@ def load_resnet_features():
    print(f"Test shape: {test_features.shape}")
 
    # download features into tar.dz file kike the HW
+   # 3. Save DATA file .npz
+   print("========== 3. Save DATA (cifar10-resnet50.tar.gz) to be used in other.==========")
    filename = 'cifar10-resnet50.tar.gz'
    np.savez_compressed(
       filename.replace('.tar.gz', ''),
@@ -154,7 +164,7 @@ def load_resnet_features():
       test_labels=test_labels
    )
 
-def main():
+def main_features_map():
    
    if os.path.exists('cifar10-resnet50.npz'):
       print(f"Skipping ResNet, features data file already exists")
@@ -174,4 +184,4 @@ def main():
 
 
 if __name__ == "__main__":
-   main()
+   main_features_map()
