@@ -99,7 +99,7 @@ def save_comparison_images(model, dataset, latent_dim):
         plt.axis("off")
         
     plt.tight_layout()
-    filename = f"visual_result_{latent_dim}.png"
+    filename = f"results/visual_result_{latent_dim}.png"
     plt.savefig(filename)
     print(f"Saved image visualization to {filename}")
     plt.close()
