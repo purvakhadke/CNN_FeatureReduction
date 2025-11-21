@@ -14,14 +14,24 @@ AE_EPOCHS = 20    # Autoencoder training epochs
 CLS_EPOCHS = 10   # Classifier training epochs
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 128
-# --- MUST MATCH THE OUTPUT FILE NAME FROM feature_extractor.py ---
-FEATURE_FILE = 'cifar10-resnet50_features_SAMPLE_2000.npz' 
-
+FEATURE_FILE = 'cifar10-resnet50.npz'  # Just change this line to switch datasets!
+SAMPLE_SIZE = 20000  # Change to None for full dataset
+if SAMPLE_SIZE != None:
+    print("========AYYYYYYYY")
+    print("AYYYYYYYY========")
+    print("========AYYYYYYYY")
+    print("AYYYYYYYY========")
+    print("========AYYYYYYYY")
+    print(f"SAMPLE SIZE IS {SAMPLE_SIZE}")
+    print(f"SAMPLE SIZE IS {SAMPLE_SIZE}")
+    print(f"SAMPLE SIZE IS {SAMPLE_SIZE}")
+    print("========AYYYYYYYY")
+    print("AYYYYYYYY========")
+    print("========AYYYYYYYY")
+    print("AYYYYYYYY========")
+    print("========AYYYYYYYY")
 # Dimensions to test (the D_latent sweep)
 LATENT_DIMS = [1024, 512, 256, 128, 64, 32] 
-# Note: Since we only have 2000 samples, we must reduce the train/test split size.
-TRAIN_SIZE = 1500
-TEST_SIZE = 500
 
 # --- A. Autoencoder Model ---
 class Autoencoder(nn.Module):
@@ -116,18 +126,25 @@ def train_classifier(model, train_loader, test_loader, epochs):
 # --- D. Main Execution and Sweep Loop ---
 
 def main_sweep():
-    # --- Data Loading and Splitting ---
+    # --- Data Loading (use pre-split train/test data) ---
     try:
         data = np.load(FEATURE_FILE)
-        all_features = torch.from_numpy(data['features']).float()
-        all_labels = torch.from_numpy(data['labels']).long()
+        # train_features = torch.from_numpy(data['train_features']).float()
+        # train_labels = torch.from_numpy(data['train_labels']).long()
+        train_features = torch.from_numpy(data['train_features'][:SAMPLE_SIZE]).float()
+        train_labels = torch.from_numpy(data['train_labels'][:SAMPLE_SIZE]).long()
+
+        test_features = torch.from_numpy(data['test_features']).float()
+        test_labels = torch.from_numpy(data['test_labels']).long()
     except FileNotFoundError:
         print(f"Error: Feature file '{FEATURE_FILE}' not found. Did you run feature_extractor.py first?")
         sys.exit(1)
 
-    full_dataset = TensorDataset(all_features, all_labels)
-    # Ensure our split matches the small sample size (e.g., 2000 total)
-    train_data, test_data = random_split(full_dataset, [TRAIN_SIZE, len(full_dataset) - TRAIN_SIZE])
+    train_data = TensorDataset(train_features, train_labels)
+    test_data = TensorDataset(test_features, test_labels)
+    
+    print(f"Loaded dataset from '{FEATURE_FILE}'")
+    print(f"Train: {len(train_data)} samples, Test: {len(test_data)} samples")
 
     # --- Sweep Storage ---
     results_mse = []
@@ -146,13 +163,13 @@ def main_sweep():
         # 2. Extract Latent Features
         ae_model.eval()
         with torch.no_grad():
-            # Extract *all* features from the subsets for classifier training
-            train_latent_features = ae_model.encoder(train_data[:][0].to(DEVICE))
-            test_latent_features = ae_model.encoder(test_data[:][0].to(DEVICE))
+            # Extract *all* features from train and test sets
+            train_latent_features = ae_model.encoder(train_features.to(DEVICE))
+            test_latent_features = ae_model.encoder(test_features.to(DEVICE))
 
         # 3. Setup Classifier DataLoaders
-        cls_train_dataset = TensorDataset(train_latent_features, train_data[:][1])
-        cls_test_dataset = TensorDataset(test_latent_features, test_data[:][1])
+        cls_train_dataset = TensorDataset(train_latent_features, train_labels)
+        cls_test_dataset = TensorDataset(test_latent_features, test_labels)
         cls_train_loader = DataLoader(cls_train_dataset, batch_size=BATCH_SIZE, shuffle=True)
         cls_test_loader = DataLoader(cls_test_dataset, batch_size=BATCH_SIZE, shuffle=False)
         
@@ -190,12 +207,12 @@ def plot_results(dims, mse_losses, accuracies):
     plt.ylabel('Test Accuracy (%)')
     plt.grid(True)
     
-    # --- Resolution Step: Save the figure instead of trying to show it interactively ---
+    # --- Save the figure ---
     plt.tight_layout()
-    output_plot_filename = 'autoencoder_sweep_results.png'
+    output_plot_filename = 'results/autoencoder_sweep_results.png'
     plt.savefig(output_plot_filename) 
     
-    print(f"\n--- Plots saved successfully to '{output_plot_filename}' ---")
+    print(f"\n--- Plots saved successfully to results/'{output_plot_filename}' ---")
 
 if __name__ == "__main__":
     main_sweep()
