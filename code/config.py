@@ -1,4 +1,5 @@
-SAMPLE_SIZE = 20000  # Change to None for full dataset
+import csv 
+SAMPLE_SIZE = 2000  # Change to None for full dataset
 
 
 
