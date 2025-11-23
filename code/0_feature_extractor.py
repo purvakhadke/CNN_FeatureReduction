@@ -52,10 +52,7 @@ import os
 
 # get ResNet features layer
 def load_resnet_features():
-
-   # CIFAR-10 has 60000 32x32 color images across 10 classes
-   classes = ('plane', 'car', 'bird', 'cat',
-            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+   
    # ResNet50 expects 224x224 images
    # Reason is bc the original ResNet50 was pretrained on ImageNet which was 224x224x3
          # After asking LLM to thouroghly teach me the core concept to ResNet and how it constructs the feature map, 
