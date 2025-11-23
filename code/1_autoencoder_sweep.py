@@ -41,8 +41,7 @@ if SAMPLE_SIZE != None:
     print("AYYYYYYYY========")
     print("========AYYYYYYYY")
 
-# Dimensions to test (the D_latent sweep)
-LATENT_DIMS = [1024, 512, 256, 128, 64, 32] 
+
 
 # --- A. Autoencoder Model ---
 class Autoencoder(nn.Module):
@@ -174,7 +173,7 @@ def main_sweep():
     interpretability_metrics = []
 
     # --- Dimension Sweep Loop ---
-    for d_latent in LATENT_DIMS:
+    for d_latent in DIMENSIONS_TO_COMPRESS_TO:
         print(f"\n--- Running Sweep for D_latent = {d_latent} ---")
         
         # 1. Train Autoencoder
@@ -215,11 +214,11 @@ def main_sweep():
         )
         interpretability_metrics.append(metrics)
 
-    plot_interpretability_trends(LATENT_DIMS, interpretability_metrics, 'autoencoder')
+    plot_interpretability_trends(DIMENSIONS_TO_COMPRESS_TO, interpretability_metrics, 'autoencoder')
 
     # 6. Plot Results
-    save_results_csv('../results/autoencoder_results.csv', LATENT_DIMS, results_mse, results_acc, results_time)
-    plot_results(LATENT_DIMS, results_mse, results_acc)
+    save_results_csv('../results/autoencoder_results.csv', DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, results_time)
+    plot_results(DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc)
 
 
 def plot_results(dims, mse_losses, accuracies):

@@ -13,6 +13,9 @@ SAMPLE_SIZE = 2000  # Change to None for full dataset
 CLASSES = ('plane', 'car', 'bird', 'cat',
             'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
+# Dimensions to test the compression sweep
+DIMENSIONS_TO_COMPRESS_TO = [256, 128, 64, 32] 
+
 DEVICE = torch.device("cpu") 
 
 def plot_interpretability_trends(dims, metrics_list, method_name):

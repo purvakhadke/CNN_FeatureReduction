@@ -43,8 +43,6 @@ if SAMPLE_SIZE != None:
     print("AYYYYYYYY========")
     print("========AYYYYYYYY")
 
-# Dimensions to test (the d_model sweep for Transformer)
-TRANSFORMER_DIMS = [1024, 512, 256, 128, 64, 32]
 NUM_HEADS = 8  # Number of attention heads
 NUM_LAYERS = 2  # Number of transformer encoder layers
 FFN_DIM_MULTIPLIER = 4  # Feedforward dimension = d_model * multiplier
@@ -202,7 +200,7 @@ def main_sweep():
     interpretability_metrics = []
 
     # --- Dimension Sweep Loop ---
-    for d_model in TRANSFORMER_DIMS:
+    for d_model in DIMENSIONS_TO_COMPRESS_TO:
         print(f"\n--- Running Sweep for d_model = {d_model} ---")
         
         # 1. Train Transformer
@@ -243,11 +241,11 @@ def main_sweep():
         )
         interpretability_metrics.append(metrics)
      
-    plot_interpretability_trends(TRANSFORMER_DIMS, interpretability_metrics, 'transformer')
+    plot_interpretability_trends(DIMENSIONS_TO_COMPRESS_TO, interpretability_metrics, 'transformer')
 
     # 6. Plot Results
-    save_results_csv('../results/transformer_results.csv', TRANSFORMER_DIMS, results_mse, results_acc, results_time)
-    plot_results(TRANSFORMER_DIMS, results_mse, results_acc)
+    save_results_csv('../results/transformer_results.csv', DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, results_time)
+    plot_results(DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc)
 
 
 def plot_results(dims, mse_losses, accuracies):
