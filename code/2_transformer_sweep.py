@@ -5,6 +5,7 @@ from torch.utils.data import TensorDataset, DataLoader, random_split
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+from config import *
 
 # --- Configuration ---
 DEVICE = torch.device("cpu") 
@@ -15,7 +16,8 @@ CLS_EPOCHS = 10   # Classifier training epochs
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 128
 FEATURE_FILE = 'cifar10-resnet50.npz'  # Just change this line to switch datasets!
-SAMPLE_SIZE = 20000  # Change to None for full dataset
+
+# set in config.py file
 if SAMPLE_SIZE != None:
     print("========AYYYYYYYY")
     print("AYYYYYYYY========")
