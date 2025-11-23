@@ -1,12 +1,126 @@
-import csv 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import TensorDataset, DataLoader, random_split
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import os
+import csv
+import time
+
 SAMPLE_SIZE = 2000  # Change to None for full dataset
+CLASSES = ('plane', 'car', 'bird', 'cat',
+            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+
+DEVICE = torch.device("cpu") 
+
+def plot_interpretability_trends(dims, metrics_list, method_name):
+    """Plot how interpretability changes across dimensions."""
+    silhouettes = [m['silhouette'] for m in metrics_list]
+    separations = [m['separation'] for m in metrics_list]
+    
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # Silhouette trend
+    axes[0].plot(dims, silhouettes, marker='o', linewidth=2, color='tab:purple')
+    axes[0].set_title('Silhouette Score vs Dimension', fontsize=12, fontweight='bold')
+    axes[0].set_xlabel('Latent Dimension')
+    axes[0].set_ylabel('Silhouette Score')
+    axes[0].grid(True, alpha=0.3)
+    
+    # Separation trend
+    axes[1].plot(dims, separations, marker='o', linewidth=2, color='tab:green')
+    axes[1].set_title('Class Separation vs Dimension', fontsize=12, fontweight='bold')
+    axes[1].set_xlabel('Latent Dimension')
+    axes[1].set_ylabel('Average Inter-Class Distance')
+    axes[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(f'../results/{method_name}_interpretability_trends.png', dpi=300)
+
+    print(f"  ✅ Interpretability trends saved")
+
+
+
+
+def calculate_class_separation(features, labels):
+    """Calculate average distance between class centroids."""
+    centroids = []
+    for i in range(10):
+        class_features = features[labels == i]
+        centroids.append(np.mean(class_features, axis=0))
+    centroids = np.array(centroids)
+    
+    distances = []
+    for i in range(10):
+        for j in range(i+1, 10):
+            dist = np.linalg.norm(centroids[i] - centroids[j])
+            distances.append(dist)
+    
+    return np.mean(distances)
+
+
+
+def run_interpretability_analysis(model, train_features, test_features, test_labels, method_name, dimension, create_plot=True):
+    """Run interpretability analysis on the given model."""
+    from sklearn.metrics import silhouette_score
+    
+    # Extract features
+    model.eval()
+    with torch.no_grad():
+        if 'Autoencoder' in method_name:
+            reduced_features = model.encoder(test_features.to(DEVICE))
+        else:  # Transformer
+            _, reduced_features = model(test_features.to(DEVICE))
+    
+    reduced_np = reduced_features.cpu().numpy()
+    labels_np = test_labels.numpy()
+    
+    # Calculate metrics (FAST - always do this)
+    silhouette = silhouette_score(reduced_np, labels_np)
+    separation = calculate_class_separation(reduced_np, labels_np)
+    
+    print(f"  [{dimension}D] Silhouette: {silhouette:.4f}, Separation: {separation:.2f}")
+    
+    # Create t-SNE visualization (SLOW - only for selected dimensions)
+    if create_plot:
+        from sklearn.manifold import TSNE
+        print(f"  Computing t-SNE for {dimension}D...")
+        tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+        features_2d = tsne.fit_transform(reduced_np)
+        
+        # Plot
+        plt.figure(figsize=(10, 8))
+        colors = plt.cm.tab10(np.linspace(0, 1, 10))
+        
+        for i in range(10):
+            mask = labels_np == i
+            plt.scatter(features_2d[mask, 0], features_2d[mask, 1], 
+                       c=[colors[i]], label=CLASSES[i], 
+                       alpha=0.6, s=20, edgecolors='none')
+        
+        plt.title(f'{method_name}: t-SNE Projection ({dimension}D)\nSilhouette: {silhouette:.4f}, Separation: {separation:.2f}', 
+                  fontsize=14, fontweight='bold')
+        plt.xlabel('t-SNE Dimension 1')
+        plt.ylabel('t-SNE Dimension 2')
+        plt.legend(loc='best', framealpha=0.9, fontsize=8)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        
+        output_filename = f'../results/{method_name.lower().replace(" ", "_")}_tsne_{dimension}d.png'
+        plt.savefig(output_filename, dpi=300, bbox_inches='tight')
+        print(f"  ✅ Saved to '{output_filename}'")
+    
+    return {'dimension': dimension, 'silhouette': silhouette, 'separation': separation}
+
+
+
 
 
 
 def save_results_csv(filename, dims, mse_losses, accuracies, times):
     """Save numerical results to CSV for later comparison."""
-    import os
-    os.makedirs('results', exist_ok=True)
     
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)

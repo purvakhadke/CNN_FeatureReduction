@@ -198,7 +198,9 @@ def main_sweep():
     results_mse = []
     results_acc = []
     
-    results_time = []
+    results_time = []  
+    interpretability_metrics = []
+
     # --- Dimension Sweep Loop ---
     for d_model in TRANSFORMER_DIMS:
         print(f"\n--- Running Sweep for d_model = {d_model} ---")
@@ -233,9 +235,18 @@ def main_sweep():
         cls_model = Classifier(d_model).to(DEVICE)
         test_accuracy = train_classifier(cls_model, cls_train_loader, cls_test_loader, CLS_EPOCHS)
         results_acc.append(test_accuracy)
-        
-    # 5. Plot Results
-    save_results_csv('results/transformer_results.csv', TRANSFORMER_DIMS, results_mse, results_acc, results_time)
+
+        # 5. RUN INTERPRETABILITY FOR THIS DIMENSION
+        metrics = run_interpretability_analysis(
+            transformer_model, train_features, test_features, test_labels,
+            "Transformer", d_model
+        )
+        interpretability_metrics.append(metrics)
+     
+    plot_interpretability_trends(TRANSFORMER_DIMS, interpretability_metrics, 'transformer')
+
+    # 6. Plot Results
+    save_results_csv('../results/transformer_results.csv', TRANSFORMER_DIMS, results_mse, results_acc, results_time)
     plot_results(TRANSFORMER_DIMS, results_mse, results_acc)
 
 
@@ -266,10 +277,14 @@ def plot_results(dims, mse_losses, accuracies):
     
     # --- Save the figure ---
     plt.tight_layout()
-    output_plot_filename = 'results/transformer_sweep_results.png'
+    output_plot_filename = '../results/transformer_sweep_results.png'
     plt.savefig(output_plot_filename) 
     
     print(f"\n--- Plots saved successfully to '{output_plot_filename}' ---")
 
-if __name__ == "__main__":
+
+def main():
     main_sweep()
+
+if __name__ == "__main__":
+    main()

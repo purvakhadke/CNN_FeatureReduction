@@ -171,6 +171,8 @@ def main_sweep():
 
     # time it takes for the results
     results_time = []  
+    interpretability_metrics = []
+
     # --- Dimension Sweep Loop ---
     for d_latent in LATENT_DIMS:
         print(f"\n--- Running Sweep for D_latent = {d_latent} ---")
@@ -206,8 +208,17 @@ def main_sweep():
         test_accuracy = train_classifier(cls_model, cls_train_loader, cls_test_loader, CLS_EPOCHS)
         results_acc.append(test_accuracy)
         
-    # 5. Plot Results
-    save_results_csv('results/autoencoder_results.csv', LATENT_DIMS, results_mse, results_acc, results_time)
+        # 5. RUN INTERPRETABILITY FOR THIS DIMENSION
+        metrics = run_interpretability_analysis(
+            ae_model, train_features, test_features, test_labels, 
+            f"Autoencoder-{d_latent}D", d_latent
+        )
+        interpretability_metrics.append(metrics)
+
+    plot_interpretability_trends(LATENT_DIMS, interpretability_metrics, 'autoencoder')
+
+    # 6. Plot Results
+    save_results_csv('../results/autoencoder_results.csv', LATENT_DIMS, results_mse, results_acc, results_time)
     plot_results(LATENT_DIMS, results_mse, results_acc)
 
 
@@ -238,10 +249,14 @@ def plot_results(dims, mse_losses, accuracies):
     
     # --- Save the figure ---
     plt.tight_layout()
-    output_plot_filename = 'results/autoencoder_sweep_results.png'
+    output_plot_filename = '../results/autoencoder_sweep_results.png'
     plt.savefig(output_plot_filename) 
     
-    print(f"\n--- Plots saved successfully to results/'{output_plot_filename}' ---")
+    print(f"\n--- Plots saved successfully to ../results/'{output_plot_filename}' ---")
+
+
+def main():
+    main_sweep()
 
 if __name__ == "__main__":
-    main_sweep()
+    main()

@@ -180,5 +180,8 @@ def main_features_map():
       load_resnet_features()
 
 
+def main():
+    main_features_map()
+
 if __name__ == "__main__":
-   main_features_map()
+    main()
