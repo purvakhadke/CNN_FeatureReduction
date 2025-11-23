@@ -21,8 +21,12 @@ LEARNING_RATE = 1e-3
 BATCH_SIZE = 128
 FEATURE_FILE = 'cifar10-resnet50.npz'  # Just change this line to switch datasets!
 
+TRAIN_SAMPLE_SIZE = None
+TEST_SAMPLE_SIZE = None
 # set in config.py file
 if SAMPLE_SIZE != None:
+    TRAIN_SAMPLE_SIZE = int(SAMPLE_SIZE * 0.9)  # 90%
+    TEST_SAMPLE_SIZE = int(SAMPLE_SIZE * 0.1)   # 10%
     print("========AYYYYYYYY")
     print("AYYYYYYYY========")
     print("========AYYYYYYYY")
@@ -36,6 +40,7 @@ if SAMPLE_SIZE != None:
     print("========AYYYYYYYY")
     print("AYYYYYYYY========")
     print("========AYYYYYYYY")
+
 # Dimensions to test (the D_latent sweep)
 LATENT_DIMS = [1024, 512, 256, 128, 64, 32] 
 
@@ -135,15 +140,23 @@ def main_sweep():
     # --- Data Loading (use pre-split train/test data) ---
     try:
         data = np.load(FEATURE_FILE)
-        # train_features = torch.from_numpy(data['train_features']).float()
-        # train_labels = torch.from_numpy(data['train_labels']).long()
-        train_features = torch.from_numpy(data['train_features'][:SAMPLE_SIZE]).float()
-        train_labels = torch.from_numpy(data['train_labels'][:SAMPLE_SIZE]).long()
-
-        test_features = torch.from_numpy(data['test_features']).float()
-        test_labels = torch.from_numpy(data['test_labels']).long()
+        if TRAIN_SAMPLE_SIZE is not None:
+            # Use sampled sizes
+            train_features = torch.from_numpy(data['train_features'][:TRAIN_SAMPLE_SIZE]).float()
+            train_labels = torch.from_numpy(data['train_labels'][:TRAIN_SAMPLE_SIZE]).long()
+            
+            test_features = torch.from_numpy(data['test_features'][:TEST_SAMPLE_SIZE]).float()
+            test_labels = torch.from_numpy(data['test_labels'][:TEST_SAMPLE_SIZE]).long()
+        else:
+            # Use full dataset
+            train_features = torch.from_numpy(data['train_features']).float()
+            train_labels = torch.from_numpy(data['train_labels']).long()
+            
+            test_features = torch.from_numpy(data['test_features']).float()
+            test_labels = torch.from_numpy(data['test_labels']).long()
+            
     except FileNotFoundError:
-        print(f"Error: Feature file '{FEATURE_FILE}' not found. Did you run feature_extractor.py first?")
+        print(f"Error: Feature file '{FEATURE_FILE}' not found.")
         sys.exit(1)
 
     train_data = TensorDataset(train_features, train_labels)
