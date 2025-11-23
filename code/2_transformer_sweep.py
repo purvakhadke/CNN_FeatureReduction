@@ -5,7 +5,13 @@ from torch.utils.data import TensorDataset, DataLoader, random_split
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+
+import os
+import csv
+import time
+
 from config import *
+
 
 # --- Configuration ---
 DEVICE = torch.device("cpu") 
@@ -176,7 +182,8 @@ def main_sweep():
     # --- Sweep Storage ---
     results_mse = []
     results_acc = []
-
+    
+    results_time = []
     # --- Dimension Sweep Loop ---
     for d_model in TRANSFORMER_DIMS:
         print(f"\n--- Running Sweep for d_model = {d_model} ---")
@@ -184,7 +191,14 @@ def main_sweep():
         # 1. Train Transformer
         transformer_model = TransformerEncoder(d_model).to(DEVICE)
         transformer_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+        
+        start_time = time.time()
         final_mse_loss = train_transformer(transformer_model, transformer_train_loader, TRANSFORMER_EPOCHS)
+        train_time = time.time() - start_time
+        results_time.append(train_time)
+
+
+        
         results_mse.append(final_mse_loss)
         
         # 2. Extract Transformed Features
@@ -206,6 +220,7 @@ def main_sweep():
         results_acc.append(test_accuracy)
         
     # 5. Plot Results
+    save_results_csv('results/transformer_results.csv', TRANSFORMER_DIMS, results_mse, results_acc, results_time)
     plot_results(TRANSFORMER_DIMS, results_mse, results_acc)
 
 

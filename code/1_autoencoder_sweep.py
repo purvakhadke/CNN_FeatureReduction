@@ -5,6 +5,10 @@ from torch.utils.data import TensorDataset, DataLoader, random_split
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import os
+import csv
+import time
+
 from config import *
 
 # --- Configuration ---
@@ -152,6 +156,8 @@ def main_sweep():
     results_mse = []
     results_acc = []
 
+    # time it takes for the results
+    results_time = []  
     # --- Dimension Sweep Loop ---
     for d_latent in LATENT_DIMS:
         print(f"\n--- Running Sweep for D_latent = {d_latent} ---")
@@ -159,9 +165,16 @@ def main_sweep():
         # 1. Train Autoencoder
         ae_model = Autoencoder(d_latent).to(DEVICE)
         ae_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-        final_mse_loss = train_autoencoder(ae_model, ae_train_loader, AE_EPOCHS)
-        results_mse.append(final_mse_loss)
         
+        # we need to see how long it took to train bc we are using time as the metric for efficiency
+        start_time = time.time()
+        final_mse_loss = train_autoencoder(ae_model, ae_train_loader, AE_EPOCHS)
+        train_time = time.time() - start_time
+        
+        
+        results_mse.append(final_mse_loss)
+        results_time.append(train_time)
+
         # 2. Extract Latent Features
         ae_model.eval()
         with torch.no_grad():
@@ -181,6 +194,7 @@ def main_sweep():
         results_acc.append(test_accuracy)
         
     # 5. Plot Results
+    save_results_csv('results/autoencoder_results.csv', LATENT_DIMS, results_mse, results_acc, results_time)
     plot_results(LATENT_DIMS, results_mse, results_acc)
 
 
