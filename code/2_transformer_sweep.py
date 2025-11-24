@@ -14,14 +14,7 @@ from config import *
 
 
 # --- Configuration ---
-DEVICE = torch.device("cpu") 
-INPUT_DIM = 2048
-OUTPUT_CLASSES = 10
-TRANSFORMER_EPOCHS = 20    # Transformer training epochs
-CLS_EPOCHS = 10   # Classifier training epochs
-LEARNING_RATE = 1e-3
-BATCH_SIZE = 128
-FEATURE_FILE = 'cifar10-resnet50.npz'  # Just change this line to switch datasets!
+
 
 TRAIN_SAMPLE_SIZE = None
 TEST_SAMPLE_SIZE = None
@@ -100,7 +93,7 @@ class TransformerEncoder(nn.Module):
 class Classifier(nn.Module):
     def __init__(self, input_dim):
         super(Classifier, self).__init__()
-        self.fc = nn.Linear(input_dim, OUTPUT_CLASSES) 
+        self.fc = nn.Linear(input_dim, len(CLASSES)) 
 
     def forward(self, x):
         return self.fc(x)
@@ -117,7 +110,7 @@ def train_transformer(model, loader, epochs):
         running_loss = 0.0
         for data in loader:
             # Transformer training is UN-SUPERVISED (reconstruction task)
-            inputs = data[0].to(DEVICE)
+            inputs = data[0]
             optimizer.zero_grad()
             reconstruction, _ = model(inputs)
             loss = criterion(reconstruction, inputs)
@@ -137,7 +130,7 @@ def train_classifier(model, train_loader, test_loader, epochs):
     model.train()
     for epoch in range(epochs):
         for features, labels in train_loader:
-            features, labels = features.to(DEVICE), labels.to(DEVICE)
+            features, labels = features, labels
             optimizer.zero_grad()
             outputs = model(features)
             loss = criterion(outputs, labels)
@@ -150,7 +143,7 @@ def train_classifier(model, train_loader, test_loader, epochs):
     total = 0
     with torch.no_grad():
         for features, labels in test_loader:
-            features, labels = features.to(DEVICE), labels.to(DEVICE)
+            features, labels = features, labels
             outputs = model(features)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -204,11 +197,11 @@ def main_sweep():
         print(f"\n--- Running Sweep for d_model = {d_model} ---")
         
         # 1. Train Transformer
-        transformer_model = TransformerEncoder(d_model).to(DEVICE)
+        transformer_model = TransformerEncoder(d_model)
         transformer_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
         
         start_time = time.time()
-        final_mse_loss = train_transformer(transformer_model, transformer_train_loader, TRANSFORMER_EPOCHS)
+        final_mse_loss = train_transformer(transformer_model, transformer_train_loader, EPOCHS)
         train_time = time.time() - start_time
         results_time.append(train_time)
 
@@ -220,8 +213,8 @@ def main_sweep():
         transformer_model.eval()
         with torch.no_grad():
             # Extract *all* features from train and test sets
-            _, train_transformed_features = transformer_model(train_features.to(DEVICE))
-            _, test_transformed_features = transformer_model(test_features.to(DEVICE))
+            _, train_transformed_features = transformer_model(train_features)
+            _, test_transformed_features = transformer_model(test_features)
 
         # 3. Setup Classifier DataLoaders
         cls_train_dataset = TensorDataset(train_transformed_features, train_labels)
@@ -230,8 +223,8 @@ def main_sweep():
         cls_test_loader = DataLoader(cls_test_dataset, batch_size=BATCH_SIZE, shuffle=False)
         
         # 4. Train Classifier
-        cls_model = Classifier(d_model).to(DEVICE)
-        test_accuracy = train_classifier(cls_model, cls_train_loader, cls_test_loader, CLS_EPOCHS)
+        cls_model = Classifier(d_model)
+        test_accuracy = train_classifier(cls_model, cls_train_loader, cls_test_loader, EPOCHS_classifier)
         results_acc.append(test_accuracy)
 
         # 5. RUN INTERPRETABILITY FOR THIS DIMENSION
@@ -245,40 +238,13 @@ def main_sweep():
 
     # 6. Plot Results
     save_results_csv('../results/transformer_results.csv', DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, results_time)
-    plot_results(DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc)
-
-
-def plot_results(dims, mse_losses, accuracies):
-    """Generates the required plots for the dimension sweep analysis."""
-    dims = np.array(dims)
-    
-    # ----------------------------------------------------
-    # PLOT 1: Reconstruction Loss vs. Transformer Dimension (MSE)
-    # ----------------------------------------------------
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(dims, mse_losses, marker='o', linestyle='-', color='tab:blue')
-    plt.title('Reconstruction Loss (MSE) vs. Transformer Dimension')
-    plt.xlabel('Transformer Dimension ($d_{model}$)')
-    plt.ylabel('Final MSE Loss')
-    plt.grid(True)
-    
-    # ----------------------------------------------------
-    # PLOT 2: Classification Accuracy vs. Transformer Dimension
-    # ----------------------------------------------------
-    plt.subplot(1, 2, 2)
-    plt.plot(dims, accuracies, marker='o', linestyle='-', color='tab:orange')
-    plt.title('Classification Accuracy vs. Transformer Dimension')
-    plt.xlabel('Transformer Dimension ($d_{model}$)')
-    plt.ylabel('Test Accuracy (%)')
-    plt.grid(True)
-    
-    # --- Save the figure ---
-    plt.tight_layout()
-    output_plot_filename = '../results/transformer_sweep_results.png'
-    plt.savefig(output_plot_filename) 
-    
-    print(f"\n--- Plots saved successfully to '{output_plot_filename}' ---")
+    plot_results(
+        dims=DIMENSIONS_TO_COMPRESS_TO,
+        mse_losses=results_mse,
+        accuracies=results_acc,
+        model_name="transformer",
+        x_label="Transformer Dimension ($d_{model}$)"
+    )
 
 
 def main():

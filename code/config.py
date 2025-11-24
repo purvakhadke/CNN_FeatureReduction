@@ -9,14 +9,26 @@ import os
 import csv
 import time
 
+
+
 SAMPLE_SIZE = 2000  # Change to None for full dataset
-CLASSES = ('plane', 'car', 'bird', 'cat',
-            'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+INPUT_DIM = 2048
+EPOCHS = 20
+EPOCHS_classifier = 10
+LEARNING_RATE = 0.001
+BATCH_SIZE = 128
+
+# we can have test different data (like CIFAR 100, just have the data and change this variabe)
+FEATURE_FILE = 'cifar10-resnet50.npz'
+
+
 
 # Dimensions to test the compression sweep
 DIMENSIONS_TO_COMPRESS_TO = [256, 128, 64, 32] 
+CLASSES = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-DEVICE = torch.device("cpu") 
+
+
 
 def plot_interpretability_trends(dims, metrics_list, method_name):
     """Plot how interpretability changes across dimensions."""
@@ -43,6 +55,49 @@ def plot_interpretability_trends(dims, metrics_list, method_name):
     plt.savefig(f'../results/{method_name}_interpretability_trends.png', dpi=300)
 
     print(f"  ✅ Interpretability trends saved")
+
+
+
+def plot_results(dims, mse_losses, accuracies, 
+                 model_name="autoencoder",
+                 x_label="Latent Dimension ($D_{latent}$)"):
+    """
+    Generates sweep analysis plots (MSE + accuracy) for any model type.
+    
+    Args:
+        dims: list or array of tested dimensions
+        mse_losses: list of final reconstruction losses
+        accuracies: list of final test accuracies
+        model_name: used for output filename (e.g., 'autoencoder', 'transformer')
+        x_label: label for x-axis (latent dimension or transformer dimension)
+    """
+    
+    dims = np.array(dims)
+
+    # ---------------- Plot 1 ----------------
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(dims, mse_losses, marker='o', linestyle='-', color='tab:blue')
+    plt.title(f'Reconstruction Loss (MSE) vs. {x_label}')
+    plt.xlabel(x_label)
+    plt.ylabel('Final MSE Loss')
+    plt.grid(True)
+    
+    # ---------------- Plot 2 ----------------
+    plt.subplot(1, 2, 2)
+    plt.plot(dims, accuracies, marker='o', linestyle='-', color='tab:orange')
+    plt.title(f'Classification Accuracy vs. {x_label}')
+    plt.xlabel(x_label)
+    plt.ylabel('Test Accuracy (%)')
+    plt.grid(True)
+    
+    plt.tight_layout()
+
+    # Build the correct filename
+    output_plot_filename = f'../results/{model_name}_sweep_results.png'
+    plt.savefig(output_plot_filename)
+
+    print(f"\n--- Plots saved successfully to '{output_plot_filename}' ---")
 
 
 
@@ -73,9 +128,9 @@ def run_interpretability_analysis(model, train_features, test_features, test_lab
     model.eval()
     with torch.no_grad():
         if 'Autoencoder' in method_name:
-            reduced_features = model.encoder(test_features.to(DEVICE))
+            reduced_features = model.encoder(test_features)
         else:  # Transformer
-            _, reduced_features = model(test_features.to(DEVICE))
+            _, reduced_features = model(test_features)
     
     reduced_np = reduced_features.cpu().numpy()
     labels_np = test_labels.numpy()
@@ -132,3 +187,4 @@ def save_results_csv(filename, dims, mse_losses, accuracies, times):
             writer.writerow([d, mse, acc, t])
     
     print(f"\n--- Results saved to {filename} ---")
+
