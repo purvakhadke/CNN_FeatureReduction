@@ -11,7 +11,8 @@ import time
 
 
 
-SAMPLE_SIZE = 2000  # Change to None for full dataset
+# SAMPLE_SIZE = 2000  # Change to None for full dataset
+SAMPLE_SIZE = None  # Change to None for full dataset
 INPUT_DIM = 2048
 EPOCHS = 20
 EPOCHS_classifier = 10
