@@ -120,12 +120,49 @@ def calculate_class_separation(features, labels):
     return np.mean(distances)
 
 
+# In config.py - ONE shared function
+
+def create_tsne_visualization(features_np, labels_np, method_name, dimension, silhouette, separation):
+    """
+    Create t-SNE visualization for ANY dimensionality reduction method.
+    Used by PCA, Autoencoder, and Transformer.
+    """
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+    
+    print(f"  Computing t-SNE for {method_name}-{dimension}D...")
+    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
+    features_2d = tsne.fit_transform(features_np)
+    
+    # Plot
+    plt.figure(figsize=(10, 8))
+    colors = plt.cm.tab10(np.linspace(0, 1, 10))
+    
+    for i in range(10):
+        mask = labels_np == i
+        plt.scatter(features_2d[mask, 0], features_2d[mask, 1], 
+                   c=[colors[i]], label=CLASSES[i], 
+                   alpha=0.6, s=20, edgecolors='none')
+    
+    plt.title(f'{method_name}: t-SNE Projection ({dimension}D)\nSilhouette: {silhouette:.4f}, Separation: {separation:.2f}', 
+              fontsize=14, fontweight='bold')
+    plt.xlabel('t-SNE Dimension 1')
+    plt.ylabel('t-SNE Dimension 2')
+    plt.legend(loc='best', framealpha=0.9, fontsize=8)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    output_filename = f'../results/{method_name.lower()}_tsne_{dimension}d.png'
+    plt.savefig(output_filename, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"  ✅ Saved to '{output_filename}'")
+
 
 def run_interpretability_analysis(model, train_features, test_features, test_labels, method_name, dimension, create_plot=True):
-    """Run interpretability analysis on the given model."""
+    """Run interpretability analysis on Autoencoder or Transformer models."""
     from sklearn.metrics import silhouette_score
     
-    # Extract features
+    # Extract features from the model
     model.eval()
     with torch.no_grad():
         if 'Autoencoder' in method_name:
@@ -136,44 +173,17 @@ def run_interpretability_analysis(model, train_features, test_features, test_lab
     reduced_np = reduced_features.cpu().numpy()
     labels_np = test_labels.numpy()
     
-    # Calculate metrics (FAST - always do this)
+    # Calculate metrics
     silhouette = silhouette_score(reduced_np, labels_np)
     separation = calculate_class_separation(reduced_np, labels_np)
     
     print(f"  [{dimension}D] Silhouette: {silhouette:.4f}, Separation: {separation:.2f}")
     
-    # Create t-SNE visualization (SLOW - only for selected dimensions)
+    # Create visualization using the SHARED function
     if create_plot:
-        from sklearn.manifold import TSNE
-        print(f"  Computing t-SNE for {dimension}D...")
-        tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-        features_2d = tsne.fit_transform(reduced_np)
-        
-        # Plot
-        plt.figure(figsize=(10, 8))
-        colors = plt.cm.tab10(np.linspace(0, 1, 10))
-        
-        for i in range(10):
-            mask = labels_np == i
-            plt.scatter(features_2d[mask, 0], features_2d[mask, 1], 
-                       c=[colors[i]], label=CLASSES[i], 
-                       alpha=0.6, s=20, edgecolors='none')
-        
-        plt.title(f'{method_name}: t-SNE Projection ({dimension}D)\nSilhouette: {silhouette:.4f}, Separation: {separation:.2f}', 
-                  fontsize=14, fontweight='bold')
-        plt.xlabel('t-SNE Dimension 1')
-        plt.ylabel('t-SNE Dimension 2')
-        plt.legend(loc='best', framealpha=0.9, fontsize=8)
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        
-        output_filename = f'../results/{method_name.lower().replace(" ", "_")}_tsne_{dimension}d.png'
-        plt.savefig(output_filename, dpi=300, bbox_inches='tight')
-        print(f"  ✅ Saved to '{output_filename}'")
+        create_tsne_visualization(reduced_np, labels_np, method_name, dimension, silhouette, separation)
     
     return {'dimension': dimension, 'silhouette': silhouette, 'separation': separation}
-
-
 
 
 

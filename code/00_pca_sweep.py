@@ -170,8 +170,19 @@ def main_sweep():
             'silhouette': silhouette,
             'separation': separation
         })
+        
+        # 7. CREATE T-SNE VISUALIZATION
+        # Visualize all tested dimensions
+        create_tsne_visualization(
+            test_pca_features,
+            test_labels_np,
+            'PCA',
+            n_components,
+            silhouette,
+            separation
+        )
 
-    # 7. Save and Plot Results
+    # 8. Save and Plot Results
     save_results_csv('../results/pca_results.csv', DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, results_time)
     plot_results(DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, 
                  model_name="pca",
