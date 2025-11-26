@@ -57,8 +57,8 @@ def main():
     axes[1, 1].grid(True, alpha=0.3, axis='y')
 
     plt.tight_layout()
-    plt.savefig('../results/comparison_all_methods.png', dpi=300)
-    print("\n✅ Comparison plots saved to '../results/comparison_all_methods.png'")
+    plt.savefig('../results/_comparison_all_methods.png', dpi=300)
+    print("\n✅ Comparison plots saved to '../results/_comparison_all_methods.png'")
 
     # Print summary table
     print("\n" + "="*70)
