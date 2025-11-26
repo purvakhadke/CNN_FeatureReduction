@@ -1,44 +1,3 @@
-'''
-Lets put relevant resources/citations here for
-- maybe to be cited in our paper
-- or just links to documentation to topics you think should be noted 
-
-Original Paper for ResNet: https://arxiv.org/abs/1512.03385
-(using ResNet) How to use pre-trained models in Python: https://docs.pytorch.org/vision/main/models.html
-
-
-===================================================================
-Note: need to follow up w TA if PCA or UMAP is required, might have been a typo that he included autoencoders in the next line
-Typo?-> "Extract CNN features then apply PCA, UMAP, or autoencoders."
-- regardless , it shouldnt be too hard to implement
-
-4. Reduce deep CNN feature representations for visualization or classification.
-   - Extract CNN features then apply PCA, UMAP, or autoencoders.
-   - Train a classifier on reduced space. 
-   - Compare Autoencoder vs Transformer-based reduction. 
-   - Analyze feature interpretability in reduced spaces.
-===================================================================
-
-1. Extract CNN Features (ResNet)
-   - Load CIFAR-10 images (3072 dim (32x32x3))
-   - Pass through ResNet50 (a pretrained model)
-   - Output is 2048 dim feature vectors
-   - Save as 'cifar10-resnet50.tar.gz'
-   - Load to repo for AutoEncoder and Transformer reductions to use
-
-2. Autoencoder Reduction
-   - Load 'cifar10-resnet50.npz' (2048 dim)
-   - research TBD to figure out exact steps of autoencoder training
-
-3. Transformer Reduction
-   - Load 'cifar10-resnet50.npz' (2,048-dim features)
-   - research TBD to figure out exact steps of transformer training
-
-4. Compare Results
-   - Compare accuracies: Autoencoder vs Transformer
-   - We need to have enough info to answer all RQs
-
-'''
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="urllib3")
@@ -50,134 +9,199 @@ from torchvision.models import resnet50, ResNet50_Weights
 import numpy as np
 import os
 
-# get ResNet features layer
-def load_resnet_features():
-   
-   # ResNet50 expects 224x224 images
-   # Reason is bc the original ResNet50 was pretrained on ImageNet which was 224x224x3
-         # After asking LLM to thouroghly teach me the core concept to ResNet and how it constructs the feature map, 
-         # there is a way for us to keep the image as 32x32x3 (without stretching it)
-         # but lets leave that refactoring until next week after the next lecture ab dimentionality reductions
-   
-   print("========== 1. Stretech Input Images to 224x224x3==========")
-   # 1. Resize/Strech/Upscale 32x32x3 image to 224x224x3
-   transform = transforms.Compose([
-      transforms.Resize(224),
-      transforms.ToTensor(),
-      transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-   ])
+import os
+import urllib.request
+import zipfile
+from pathlib import Path
 
-   trainset = torchvision.datasets.CIFAR10(
-      root='./data', train=True, download=True, transform=transform
-   )
-   trainloader = torch.utils.data.DataLoader(
-      trainset, batch_size=64, shuffle=False, num_workers=2
-   )
+def download_eurosat():
+    """Download and extract EuroSAT dataset."""
+    
+    data_dir = './data/eurosat'
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # EuroSAT RGB dataset URL
+    url = 'http://madm.dfki.de/files/sentinel/EuroSAT.zip'
+    zip_path = os.path.join(data_dir, 'EuroSAT.zip')
+    
+    if not os.path.exists(zip_path):
+        print("Downloading EuroSAT dataset (~90MB)...")
+        urllib.request.urlretrieve(url, zip_path)
+        print("✅ Download complete!")
+    
+    # Extract
+    extract_dir = os.path.join(data_dir, 'EuroSAT')
+    if not os.path.exists(extract_dir):
+        print("Extracting dataset...")
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(data_dir)
+        print("✅ Extraction complete!")
+    
+    return extract_dir
 
-   testset = torchvision.datasets.CIFAR10(
-      root='./data', train=False, download=True, transform=transform
-   )
-   testloader = torch.utils.data.DataLoader(
-      testset, batch_size=64, shuffle=False, num_workers=2
-   )
-
-   # Load ResNet50 and remove final classification layer
-   # 2. ResNet50 blackbox to give 2048D feature map, dont want classification layer
-   print("========== 2. ResNet BlackBox to get 2048D feature map==========")
-   # this is like a "black box", need to ask TA if this is OK, or id we need to implement ResNet on our own
-   model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-
-   '''
-   used llm to help understand/visualize this idea
-      Full ResNet50 architecture:
-      
-      Input (224x224x3)
-         ↓
-      [Convolutional layers + Residual blocks]  ← Extract visual features
-         ↓
-      Features (2048-dim)  ← This is what we want!
-         ↓
-      [Fully Connected Layer]  ← Maps 2048 → 1000 classes (ImageNet)
-         ↓
-      Output (1000 classes for ImageNet)  ← We don't need this!
-   '''
-   children = list(model.children())
-   model = torch.nn.Sequential(*children[:-1])
-   
-   model.eval()
-
-   print(f"Length of trainloader: {len(trainloader)}")   
-   train_features_list = []
-   train_labels_list = []
-
-   for i, (images, labels) in enumerate(trainloader):
-      
-      # since we're not training, we don't need to calculate the gradients for our outputs (alot is same as the tutorial)
-      with torch.no_grad():
-         features = model(images).squeeze()
-      
-      train_features_list.append(features.cpu().numpy())
-      train_labels_list.append(labels.numpy())
-      
-      # Progress logging
-      if i % 100 == 0:
-         print(f"Doing Batch {i+1}/{len(trainloader)}")
-
-   train_features = np.concatenate(train_features_list)
-   train_labels = np.concatenate(train_labels_list)
-
-   print(f"Training shape: {train_features.shape}")
-   print(f"Length of testloader: {len(testloader)}")
-
-   test_features_list = []
-   test_labels_list = []
-
-   for i, (images, labels) in enumerate(testloader):
-      
-      # Since we're not training, we don't need to calculate the gradients
-      with torch.no_grad():
-         features = model(images).squeeze()
-      
-      test_features_list.append(features.cpu().numpy())
-      test_labels_list.append(labels.numpy())
-      
-      
-      if i % 100 == 0:
-         print(f"  Batch {i}/{len(testloader)}")
-
-   test_features = np.concatenate(test_features_list)
-   test_labels = np.concatenate(test_labels_list)
-   print(f"Test shape: {test_features.shape}")
-
-   # download features into tar.dz file kike the HW
-   # 3. Save DATA file .npz
-   print("========== 3. Save DATA (cifar10-resnet50.tar.gz) to be used in other.==========")
-   filename = 'cifar10-resnet50.tar.gz'
-   np.savez_compressed(
-      filename.replace('.tar.gz', ''),
-      train_features=train_features,
-      train_labels=train_labels,
-      test_features=test_features,
-      test_labels=test_labels
-   )
-
+def load_eurosat_features():
+    print("========== Extracting EuroSAT Features ==========")
+    
+    # Download dataset
+    dataset_path = download_eurosat()
+    
+    # Check what's actually in the extracted folder
+    print(f"Checking directory structure...")
+    
+    # EuroSAT extracts to different possible locations, let's find it
+    possible_paths = [
+        os.path.join(dataset_path, '2750'),           # Expected path
+        dataset_path,                                  # Root might be the folder
+        os.path.join(dataset_path, 'EuroSAT'),        # Might be nested
+        os.path.join('./data/eurosat', '2750'),       # Alternative
+    ]
+    
+    # Find the actual data path
+    data_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            # Check if it has subdirectories (class folders)
+            subdirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+            if len(subdirs) > 0:
+                data_path = path
+                print(f"Found EuroSAT data at: {data_path}")
+                print(f"Classes found: {subdirs[:3]}... ({len(subdirs)} total)")
+                break
+    
+    if data_path is None:
+        # Last resort: search for any folder with class subdirectories
+        print("Searching for data recursively...")
+        for root, dirs, files in os.walk('./data/eurosat'):
+            if len(dirs) >= 10:  # EuroSAT has 10 classes
+                # Check if these look like class folders
+                sample_dirs = dirs[:3]
+                if any(name in ['AnnualCrop', 'Forest', 'Highway'] for name in sample_dirs):
+                    data_path = root
+                    print(f"Found EuroSAT data at: {data_path}")
+                    break
+    
+    if data_path is None:
+        raise FileNotFoundError(
+            "Could not find EuroSAT class folders. "
+            "Please check ./data/eurosat/ directory structure."
+        )
+    
+    # Transform for ResNet
+    transform = transforms.Compose([
+        transforms.Resize(224),  # EuroSAT is 64×64, resize to 224
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+    
+    # Load using ImageFolder
+    full_dataset = torchvision.datasets.ImageFolder(
+        root=data_path,
+        transform=transform
+    )
+    
+    print(f"✅ Dataset loaded successfully!")
+    print(f"Total images: {len(full_dataset)}")
+    print(f"Classes ({len(full_dataset.classes)}): {full_dataset.classes}")
+    
+    # Split into train/test (80/20)
+    train_size = int(0.8 * len(full_dataset))
+    test_size = len(full_dataset) - train_size
+    
+    train_dataset, test_dataset = torch.utils.data.random_split(
+        full_dataset, 
+        [train_size, test_size],
+        generator=torch.Generator().manual_seed(42)  # Reproducible split
+    )
+    
+    print(f"Train samples: {train_size}, Test samples: {test_size}")
+    
+    trainloader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=64, shuffle=False, num_workers=2
+    )
+    testloader = torch.utils.data.DataLoader(
+        test_dataset, batch_size=64, shuffle=False, num_workers=2
+    )
+    
+    # Load ResNet50 (trained on ImageNet - ground photos!)
+    print("Loading ImageNet-trained ResNet50...")
+    model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+    model = torch.nn.Sequential(*list(model.children())[:-1])
+    model.eval()
+    
+    print(f"Extracting features from {len(train_dataset)} training images...")
+    
+    train_features_list = []
+    train_labels_list = []
+    
+    for i, (images, labels) in enumerate(trainloader):
+        with torch.no_grad():
+            features = model(images).squeeze()
+            
+            # Handle single sample case (squeeze might remove batch dim)
+            if features.dim() == 1:
+                features = features.unsqueeze(0)
+        
+        train_features_list.append(features.cpu().numpy())
+        train_labels_list.append(labels.numpy())
+        
+        if i % 50 == 0:
+            print(f"  Train Batch {i+1}/{len(trainloader)}")
+    
+    train_features = np.concatenate(train_features_list)
+    train_labels = np.concatenate(train_labels_list)
+    
+    print(f"Training features shape: {train_features.shape}")
+    
+    # Extract test features
+    test_features_list = []
+    test_labels_list = []
+    
+    for i, (images, labels) in enumerate(testloader):
+        with torch.no_grad():
+            features = model(images).squeeze()
+            
+            if features.dim() == 1:
+                features = features.unsqueeze(0)
+        
+        test_features_list.append(features.cpu().numpy())
+        test_labels_list.append(labels.numpy())
+        
+        if i % 50 == 0:
+            print(f"  Test Batch {i+1}/{len(testloader)}")
+    
+    test_features = np.concatenate(test_features_list)
+    test_labels = np.concatenate(test_labels_list)
+    
+    print(f"Test features shape: {test_features.shape}")
+    
+    # Save features
+    np.savez_compressed(
+        'eurosat-resnet50',
+        train_features=train_features,
+        train_labels=train_labels,
+        test_features=test_features,
+        test_labels=test_labels
+    )
+    
+    print("✅ EuroSAT features extracted!")
+    print(f"Domain gap: ImageNet (ground photos) → Satellite (aerial views)")
+    
 def main_features_map():
-   
-   if os.path.exists('cifar10-resnet50.npz'):
-      print(f"Skipping ResNet, features data file already exists")
-      data = np.load('cifar10-resnet50.npz')
-      print(f"\nResNetFile contents:")
-      print(f"----Train----")
-      print(f"train_features: {data['train_features'].shape}")
-      print(f"train_labels: {data['train_labels'].shape}")
-      print(f"----Test-----")
-      print(f"test_features: {data['test_features'].shape}")
-      print(f"test_labels: {data['test_labels'].shape}")
-      data.close()
+    if os.path.exists('eurosat-resnet50.npz'):
+        print(f"Skipping EuroSAT, features data file already exists")
+        data = np.load('eurosat-resnet50.npz')
+        print(f"\nEuroSAT File contents:")
+        print(f"----Train----")
+        print(f"train_features: {data['train_features'].shape}")
+        print(f"train_labels: {data['train_labels'].shape}")
+        print(f"----Test-----")
+        print(f"test_features: {data['test_features'].shape}")
+        print(f"test_labels: {data['test_labels'].shape}")
+        data.close()
+    else:
+        print(f"EuroSAT data doesn't exist, generating features now")
+        load_eurosat_features()
 
-   else:
-      print(f"ResNet data doesnt exist, generateing features data now")
-      load_resnet_features()
 
 
 def main():
