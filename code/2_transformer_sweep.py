@@ -196,17 +196,33 @@ def main_sweep():
     for d_model in DIMENSIONS_TO_COMPRESS_TO:
         print(f"\n--- Running Sweep for d_model = {d_model} ---")
         
-        # 1. Train Transformer
+
+        model_path = f'../models/transformer_{d_model}d.pth'
         transformer_model = TransformerEncoder(d_model)
-        transformer_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+
+        if os.path.exists(model_path):
+            # Transformer alreadyt trained
+            checkpoint = torch.load(model_path)
+            transformer_model.load_state_dict(checkpoint['model_state'])
+            final_mse_loss = checkpoint['final_mse_loss']
+            train_time = checkpoint['train_time']
+            print(f"Loaded pre-trained Transformer for d_model={d_model}")
+        else:
+            # 1. Train Transformer
+            # Train as usual
+            transformer_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+            start_time = time.time()
+            final_mse_loss = train_transformer(transformer_model, transformer_train_loader, EPOCHS)
+            train_time = time.time() - start_time
+            # torch.save(transformer_model.state_dict(), model_path)
+            torch.save({
+                'model_state': transformer_model.state_dict(),
+                'final_mse_loss': final_mse_loss,
+                'train_time': train_time
+            }, f'../models/transformer_{d_model}d.pth')
+
         
-        start_time = time.time()
-        final_mse_loss = train_transformer(transformer_model, transformer_train_loader, EPOCHS)
-        train_time = time.time() - start_time
         results_time.append(train_time)
-
-
-        
         results_mse.append(final_mse_loss)
         
         # 2. Extract Transformed Features
@@ -233,7 +249,8 @@ def main_sweep():
             "Transformer", d_model
         )
         interpretability_metrics.append(metrics)
-     
+    
+    
     plot_interpretability_trends(DIMENSIONS_TO_COMPRESS_TO, interpretability_metrics, 'transformer')
 
     # 6. Plot Results

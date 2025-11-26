@@ -175,27 +175,46 @@ def main_sweep():
 
     # --- Dimension Sweep Loop ---
     for d_latent in DIMENSIONS_TO_COMPRESS_TO:
+
         print(f"\n--- Running Sweep for D_latent = {d_latent} ---")
-        
-        # 1. Train Autoencoder
-        ae_model = Autoencoder(d_latent)
-        ae_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-        
-        # we need to see how long it took to train bc we are using time as the metric for efficiency
-        start_time = time.time()
-        final_mse_loss = train_autoencoder(ae_model, ae_train_loader, EPOCHS)
-        train_time = time.time() - start_time
-        
-        
+        model_path = f'../models/autoencoder_{d_latent}d.pth'
+        autoencoder_model = Autoencoder(d_latent)
+
+        if os.path.exists(model_path):
+            # Load pre-trained AE
+            checkpoint = torch.load(model_path)
+            autoencoder_model.load_state_dict(checkpoint['model_state'])
+            final_mse_loss = checkpoint['final_mse_loss']
+            train_time = checkpoint['train_time']
+            print(f"Loaded pre-trained Autoencoder for d_latent={d_latent}")
+        else:
+            # 1. Train Autoencoder
+            # Train AE as usual
+            ae_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+            # we need to see how long it took to train bc we are using time as the metric for efficiency
+            start_time = time.time()
+            final_mse_loss = train_autoencoder(autoencoder_model, ae_train_loader, EPOCHS)
+            train_time = time.time() - start_time
+
+            # Ensure models directory exists
+            # os.makedirs('../models/', exist_ok=True)
+            torch.save({
+                'model_state': autoencoder_model.state_dict(),
+                'final_mse_loss': final_mse_loss,
+                'train_time': train_time
+            }, model_path)
+            print(f"Trained and saved Autoencoder for d_latent={d_latent}")
+
+
         results_mse.append(final_mse_loss)
         results_time.append(train_time)
 
         # 2. Extract Latent Features
-        ae_model.eval()
+        autoencoder_model.eval()
         with torch.no_grad():
             # Extract *all* features from train and test sets
-            train_latent_features = ae_model.encoder(train_features)
-            test_latent_features = ae_model.encoder(test_features)
+            train_latent_features = autoencoder_model.encoder(train_features)
+            test_latent_features = autoencoder_model.encoder(test_features)
 
         # 3. Setup Classifier DataLoaders
         cls_train_dataset = TensorDataset(train_latent_features, train_labels)
@@ -210,7 +229,7 @@ def main_sweep():
         
         # 5. RUN INTERPRETABILITY FOR THIS DIMENSION
         metrics = run_interpretability_analysis(
-            ae_model, train_features, test_features, test_labels, 
+            autoencoder_model, train_features, test_features, test_labels, 
             f"Autoencoder-{d_latent}D", d_latent
         )
         interpretability_metrics.append(metrics)
