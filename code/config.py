@@ -20,13 +20,11 @@ LEARNING_RATE = 0.001
 BATCH_SIZE = 128
 
 # we can have test different data (like CIFAR 100, just have the data and change this variabe)
-FEATURE_FILE = 'eurosat-resnet50.npz'
+FEATURE_FILE = 'nyu_depth-resnet50.npz'
 CLASSES = (
-    'AnnualCrop', 'Forest', 'HerbaceousVegetation', 'Highway', 
-    'Industrial', 'Pasture', 'PermanentCrop', 'Residential', 
-    'River', 'SeaLake'
+    'wall', 'floor', 'cabinet', 'bed', 'chair',
+    'sofa', 'table', 'door', 'window', 'bookshelf'
 )
-
 
 
 # Dimensions to test the compression sweep

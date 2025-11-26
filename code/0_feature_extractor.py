@@ -14,183 +14,262 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-def download_eurosat():
-    """Download and extract EuroSAT dataset."""
+# In 0_feature_extractor.py
+
+import scipy.io
+import h5py
+from PIL import Image
+
+def download_nyu_depth():
+    """
+    Download NYU Depth V2 dataset.
     
-    data_dir = './data/eurosat'
+    Note: The full dataset is large (~2.8GB for labeled data)
+    We'll use the labeled subset (1,449 images)
+    """
+    import urllib.request
+    
+    data_dir = './data/nyu_depth'
     os.makedirs(data_dir, exist_ok=True)
     
-    # EuroSAT RGB dataset URL
-    url = 'http://madm.dfki.de/files/sentinel/EuroSAT.zip'
-    zip_path = os.path.join(data_dir, 'EuroSAT.zip')
+    # Download labeled dataset (1,449 RGB-D pairs)
+    mat_file = os.path.join(data_dir, 'nyu_depth_v2_labeled.mat')
     
-    if not os.path.exists(zip_path):
-        print("Downloading EuroSAT dataset (~90MB)...")
-        urllib.request.urlretrieve(url, zip_path)
+    if not os.path.exists(mat_file):
+        print("Downloading NYU Depth V2 labeled dataset (~2.8GB)...")
+        print("This may take 10-20 minutes depending on your connection...")
+        
+        url = 'http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat'
+        
+        def download_progress(count, block_size, total_size):
+            percent = int(count * block_size * 100 / total_size)
+            if count % 10 == 0:  # Update every 50 blocks
+                print(f'  Progress: {percent}% ({count * block_size / 1e6:.1f}MB / {total_size / 1e6:.1f}MB)')
+        
+        urllib.request.urlretrieve(url, mat_file, reporthook=download_progress)
         print("✅ Download complete!")
+    else:
+        print(f"Dataset already downloaded at {mat_file}")
     
-    # Extract
-    extract_dir = os.path.join(data_dir, 'EuroSAT')
-    if not os.path.exists(extract_dir):
-        print("Extracting dataset...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(data_dir)
-        print("✅ Extraction complete!")
-    
-    return extract_dir
+    return data_dir
 
-def load_eurosat_features():
-    print("========== Extracting EuroSAT Features ==========")
+def load_nyu_depth_features():
+    print("========== Extracting NYU Depth V2 Features ==========")
     
     # Download dataset
-    dataset_path = download_eurosat()
+    data_dir = download_nyu_depth()
+    mat_file = os.path.join(data_dir, 'nyu_depth_v2_labeled.mat')
     
-    # Check what's actually in the extracted folder
-    print(f"Checking directory structure...")
+    print("Loading depth images from .mat file...")
+    print("This might take a few minutes...")
     
-    # EuroSAT extracts to different possible locations, let's find it
-    possible_paths = [
-        os.path.join(dataset_path, '2750'),           # Expected path
-        dataset_path,                                  # Root might be the folder
-        os.path.join(dataset_path, 'EuroSAT'),        # Might be nested
-        os.path.join('./data/eurosat', '2750'),       # Alternative
-    ]
+    # Load the .mat file
+    try:
+        with h5py.File(mat_file, 'r') as f:
+            depths = np.array(f['depths'])
+            labels = np.array(f['labels'])
+            images = np.array(f['images'])
+            
+            print(f"Loaded data shapes:")
+            print(f"  Depths: {depths.shape}")
+            print(f"  Labels: {labels.shape}")
+            print(f"  RGB Images: {images.shape}")
+            
+            # Transpose to correct format
+            depths = np.transpose(depths, (0, 2, 1))
+            labels = np.transpose(labels, (0, 2, 1))
+            images = np.transpose(images, (0, 1, 3, 2))
+            
+    except Exception as e:
+        print(f"h5py failed, trying scipy.io: {e}")
+        mat_data = scipy.io.loadmat(mat_file)
+        depths = mat_data['depths']
+        labels = mat_data['labels']
+        images = mat_data['images']
     
-    # Find the actual data path
-    data_path = None
-    for path in possible_paths:
-        if os.path.exists(path):
-            # Check if it has subdirectories (class folders)
-            subdirs = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
-            if len(subdirs) > 0:
-                data_path = path
-                print(f"Found EuroSAT data at: {data_path}")
-                print(f"Classes found: {subdirs[:3]}... ({len(subdirs)} total)")
-                break
+    print(f"Successfully loaded {len(depths)} depth images")
     
-    if data_path is None:
-        # Last resort: search for any folder with class subdirectories
-        print("Searching for data recursively...")
-        for root, dirs, files in os.walk('./data/eurosat'):
-            if len(dirs) >= 10:  # EuroSAT has 10 classes
-                # Check if these look like class folders
-                sample_dirs = dirs[:3]
-                if any(name in ['AnnualCrop', 'Forest', 'Highway'] for name in sample_dirs):
-                    data_path = root
-                    print(f"Found EuroSAT data at: {data_path}")
-                    break
+    # Extract scene labels for classification
+    scene_labels = []
+    for i in range(len(labels)):
+        label_map = labels[i]
+        # Get most frequent non-zero label
+        unique, counts = np.unique(label_map[label_map > 0], return_counts=True)
+        if len(unique) > 0:
+            dominant_class = unique[np.argmax(counts)]
+        else:
+            dominant_class = 0
+        scene_labels.append(dominant_class)
     
-    if data_path is None:
-        raise FileNotFoundError(
-            "Could not find EuroSAT class folders. "
-            "Please check ./data/eurosat/ directory structure."
-        )
+    scene_labels = np.array(scene_labels)
+    
+    print(f"Original label distribution (top 20):")
+    unique_labels, counts = np.unique(scene_labels, return_counts=True)
+    sorted_idx = np.argsort(counts)[::-1][:20]
+    for idx in sorted_idx:
+        print(f"  Class {unique_labels[idx]}: {counts[idx]} samples")
+    
+    # Find classes with at least 30 samples (for good train/test split)
+    MIN_SAMPLES_PER_CLASS = 30
+    label_counts = np.bincount(scene_labels)
+    valid_classes = np.where(label_counts >= MIN_SAMPLES_PER_CLASS)[0]
+    
+    # Take top 10 most common classes with enough samples
+    common_classes_counts = [(cls, label_counts[cls]) for cls in valid_classes]
+    common_classes_counts.sort(key=lambda x: x[1], reverse=True)
+    common_classes = [cls for cls, count in common_classes_counts[:10]]
+    
+    print(f"\nSelected top 10 classes with ≥{MIN_SAMPLES_PER_CLASS} samples:")
+    for cls in common_classes:
+        print(f"  Class {cls}: {label_counts[cls]} samples")
+    
+    # Filter to only keep samples with common classes
+    mask = np.isin(scene_labels, common_classes)
+    depths_filtered = depths[mask]
+    scene_labels_filtered = scene_labels[mask]
+    
+    # Remap labels to 0-9
+    label_mapping = {old: new for new, old in enumerate(common_classes)}
+    scene_labels_remapped = np.array([label_mapping[l] for l in scene_labels_filtered])
+    
+    print(f"\nFiltered to {len(depths_filtered)} images with common classes")
+    print(f"Remapped class distribution: {np.bincount(scene_labels_remapped)}")
+    
+    # Verify all classes have enough samples
+    for cls_idx in range(10):
+        count = np.sum(scene_labels_remapped == cls_idx)
+        print(f"  Class {cls_idx}: {count} samples")
+        if count < 10:
+            print(f"    ⚠️ Warning: Class {cls_idx} has only {count} samples!")
+    
+    # Split train/test with stratification
+    from sklearn.model_selection import train_test_split
+    
+    # Use 80/20 split
+    train_depths, test_depths, train_labels, test_labels = train_test_split(
+        depths_filtered, scene_labels_remapped, 
+        test_size=0.2, 
+        random_state=42, 
+        stratify=scene_labels_remapped
+    )
+    
+    print(f"\nTrain: {len(train_depths)}, Test: {len(test_depths)}")
+    print(f"Train class distribution: {np.bincount(train_labels)}")
+    print(f"Test class distribution: {np.bincount(test_labels)}")
     
     # Transform for ResNet
     transform = transforms.Compose([
-        transforms.Resize(224),  # EuroSAT is 64×64, resize to 224
+        transforms.Resize(224),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     
-    # Load using ImageFolder
-    full_dataset = torchvision.datasets.ImageFolder(
-        root=data_path,
-        transform=transform
-    )
-    
-    print(f"✅ Dataset loaded successfully!")
-    print(f"Total images: {len(full_dataset)}")
-    print(f"Classes ({len(full_dataset.classes)}): {full_dataset.classes}")
-    
-    # Split into train/test (80/20)
-    train_size = int(0.8 * len(full_dataset))
-    test_size = len(full_dataset) - train_size
-    
-    train_dataset, test_dataset = torch.utils.data.random_split(
-        full_dataset, 
-        [train_size, test_size],
-        generator=torch.Generator().manual_seed(42)  # Reproducible split
-    )
-    
-    print(f"Train samples: {train_size}, Test samples: {test_size}")
-    
-    trainloader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=64, shuffle=False, num_workers=2
-    )
-    testloader = torch.utils.data.DataLoader(
-        test_dataset, batch_size=64, shuffle=False, num_workers=2
-    )
-    
-    # Load ResNet50 (trained on ImageNet - ground photos!)
-    print("Loading ImageNet-trained ResNet50...")
+    # Load ResNet50 (trained on RGB photos - NOT depth!)
+    print("\nLoading ImageNet-trained ResNet50...")
+    print("⚠️  Note: ResNet was trained on RGB photos, NOT depth maps!")
+    print("This creates MAXIMUM domain gap - PCA should struggle!")
     model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
     model = torch.nn.Sequential(*list(model.children())[:-1])
     model.eval()
     
-    print(f"Extracting features from {len(train_dataset)} training images...")
+    print("\nExtracting features from depth images...")
     
+    # Process training depth images
     train_features_list = []
-    train_labels_list = []
+    batch_size = 32
     
-    for i, (images, labels) in enumerate(trainloader):
-        with torch.no_grad():
-            features = model(images).squeeze()
+    for i in range(0, len(train_depths), batch_size):
+        batch_depths = train_depths[i:i+batch_size]
+        
+        batch_tensors = []
+        for depth_map in batch_depths:
+            # Normalize depth to 0-255 range
+            depth_normalized = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min() + 1e-8)
+            depth_normalized = (depth_normalized * 255).astype('uint8')
             
-            # Handle single sample case (squeeze might remove batch dim)
+            # Convert to PIL Image (grayscale)
+            pil_img = Image.fromarray(depth_normalized, mode='L')
+            
+            # Convert grayscale to RGB (repeat channel 3 times)
+            pil_img_rgb = pil_img.convert('RGB')
+            
+            # Apply transform
+            tensor = transform(pil_img_rgb)
+            batch_tensors.append(tensor)
+        
+        batch_tensor = torch.stack(batch_tensors)
+        
+        with torch.no_grad():
+            features = model(batch_tensor).squeeze()
             if features.dim() == 1:
                 features = features.unsqueeze(0)
         
         train_features_list.append(features.cpu().numpy())
-        train_labels_list.append(labels.numpy())
         
-        if i % 50 == 0:
-            print(f"  Train Batch {i+1}/{len(trainloader)}")
+        if (i // batch_size) % 10 == 0:
+            print(f"  Train batch {i}/{len(train_depths)}")
     
     train_features = np.concatenate(train_features_list)
-    train_labels = np.concatenate(train_labels_list)
+    print(f"Train features shape: {train_features.shape}")
     
-    print(f"Training features shape: {train_features.shape}")
-    
-    # Extract test features
+    # Process test depth images
     test_features_list = []
-    test_labels_list = []
     
-    for i, (images, labels) in enumerate(testloader):
-        with torch.no_grad():
-            features = model(images).squeeze()
+    for i in range(0, len(test_depths), batch_size):
+        batch_depths = test_depths[i:i+batch_size]
+        
+        batch_tensors = []
+        for depth_map in batch_depths:
+            # Normalize depth to 0-255 range
+            depth_normalized = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min() + 1e-8)
+            depth_normalized = (depth_normalized * 255).astype('uint8')
             
+            # Convert to PIL Image
+            pil_img = Image.fromarray(depth_normalized, mode='L')
+            pil_img_rgb = pil_img.convert('RGB')
+            
+            # Apply transform
+            tensor = transform(pil_img_rgb)
+            batch_tensors.append(tensor)
+        
+        batch_tensor = torch.stack(batch_tensors)
+        
+        with torch.no_grad():
+            features = model(batch_tensor).squeeze()
             if features.dim() == 1:
                 features = features.unsqueeze(0)
         
         test_features_list.append(features.cpu().numpy())
-        test_labels_list.append(labels.numpy())
         
-        if i % 50 == 0:
-            print(f"  Test Batch {i+1}/{len(testloader)}")
+        if (i // batch_size) % 10 == 0:
+            print(f"  Test batch {i}/{len(test_depths)}")
     
     test_features = np.concatenate(test_features_list)
-    test_labels = np.concatenate(test_labels_list)
-    
     print(f"Test features shape: {test_features.shape}")
     
     # Save features
     np.savez_compressed(
-        'eurosat-resnet50',
+        'nyu_depth-resnet50',
         train_features=train_features,
         train_labels=train_labels,
         test_features=test_features,
-        test_labels=test_labels
+        test_labels=test_labels,
+        class_ids=common_classes  # Save original class IDs for reference
     )
     
-    print("✅ EuroSAT features extracted!")
-    print(f"Domain gap: ImageNet (ground photos) → Satellite (aerial views)")
-    
+    print("\n✅ NYU Depth features extracted!")
+    print("Domain gap: RGB natural photos → Depth maps (3D geometry)")
+    print(f"\nTotal samples: {len(train_features) + len(test_features)}")
+    print(f"10 most common indoor object classes selected")
+
+
+
+
 def main_features_map():
-    if os.path.exists('eurosat-resnet50.npz'):
-        print(f"Skipping EuroSAT, features data file already exists")
-        data = np.load('eurosat-resnet50.npz')
-        print(f"\nEuroSAT File contents:")
+    if os.path.exists('nyu_depth-resnet50.npz'):
+        print(f"Skipping NYU Depth, features data file already exists")
+        data = np.load('nyu_depth-resnet50.npz')
+        print(f"\nNYU Depth File contents:")
         print(f"----Train----")
         print(f"train_features: {data['train_features'].shape}")
         print(f"train_labels: {data['train_labels'].shape}")
@@ -199,8 +278,8 @@ def main_features_map():
         print(f"test_labels: {data['test_labels'].shape}")
         data.close()
     else:
-        print(f"EuroSAT data doesn't exist, generating features now")
-        load_eurosat_features()
+        print(f"NYU Depth data doesn't exist, generating features now")
+        load_nyu_depth_features()
 
 
 
