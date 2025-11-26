@@ -25,7 +25,7 @@ FEATURE_FILE = 'cifar10-resnet50.npz'
 
 
 # Dimensions to test the compression sweep
-DIMENSIONS_TO_COMPRESS_TO = [256, 128, 64, 32] 
+DIMENSIONS_TO_COMPRESS_TO = [2, 4, 8, 16, 32, 64, 128, 256, 300, 400, 512 ] 
 CLASSES = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 
