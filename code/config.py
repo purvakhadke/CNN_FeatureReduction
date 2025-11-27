@@ -13,17 +13,17 @@ import time
 
 # SAMPLE_SIZE = 2000  # Change to None for full dataset
 SAMPLE_SIZE = None  # Change to None for full dataset
-INPUT_DIM = 2048
 EPOCHS = 20
 EPOCHS_classifier = 10
 LEARNING_RATE = 0.001
 BATCH_SIZE = 128
 
 # we can have test different data (like CIFAR 100, just have the data and change this variabe)
-FEATURE_FILE = 'nyu_depth-resnet50.npz'
+FEATURE_FILE = 'quickdraw-resnet50.npz'  # Changed
+INPUT_DIM = 2048
 CLASSES = (
-    'wall', 'floor', 'cabinet', 'bed', 'chair',
-    'sofa', 'table', 'door', 'window', 'bookshelf'
+        'truck', 'airplane', 'apple', 'bicycle', 'car',
+        'cat', 'dog', 'house', 'tree', 'umbrella'
 )
 
 

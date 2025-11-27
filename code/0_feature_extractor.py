@@ -1,4 +1,3 @@
-
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="urllib3")
 
@@ -6,229 +5,197 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import resnet50, ResNet50_Weights
+import torchvision.datasets as datasets
 import numpy as np
 import os
-
-import os
 import urllib.request
-import zipfile
-from pathlib import Path
-
+from PIL import Image  # ← ADD THIS LINE
+from sklearn.model_selection import train_test_split  # ← ADD THIS LINE TOO
 # In 0_feature_extractor.py
 
-import scipy.io
-import h5py
-from PIL import Image
-
-def download_nyu_depth():
+def download_quickdraw():
     """
-    Download NYU Depth V2 dataset.
-    
-    Note: The full dataset is large (~2.8GB for labeled data)
-    We'll use the labeled subset (1,449 images)
+    Download Quick, Draw! simplified dataset.
     """
     import urllib.request
-    
-    data_dir = './data/nyu_depth'
+    from PIL import Image
+
+    data_dir = './data/quickdraw'
     os.makedirs(data_dir, exist_ok=True)
     
-    # Download labeled dataset (1,449 RGB-D pairs)
-    mat_file = os.path.join(data_dir, 'nyu_depth_v2_labeled.mat')
+    # Select 10 diverse classes (similar diversity to CIFAR-10)
+    classes = [
+        'truck', 
+        'airplane',          # Vehicle (like plane)
+        'apple',            # Fruit/object
+        'bicycle',          # Vehicle
+        'car',              
+        'cat',              # Animal (same as CIFAR-10)
+        'dog',              # Animal (same as CIFAR-10)
+        'house',            # Structure
+        'tree',             # Nature
+        'umbrella'          # Object
+    ]
     
-    if not os.path.exists(mat_file):
-        print("Downloading NYU Depth V2 labeled dataset (~2.8GB)...")
-        print("This may take 10-20 minutes depending on your connection...")
-        
-        url = 'http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat'
-        
-        def download_progress(count, block_size, total_size):
-            percent = int(count * block_size * 100 / total_size)
-            if count % 10 == 0:  # Update every 50 blocks
-                print(f'  Progress: {percent}% ({count * block_size / 1e6:.1f}MB / {total_size / 1e6:.1f}MB)')
-        
-        urllib.request.urlretrieve(url, mat_file, reporthook=download_progress)
-        print("✅ Download complete!")
-    else:
-        print(f"Dataset already downloaded at {mat_file}")
+    base_url = 'https://storage.googleapis.com/quickdraw_dataset/full/numpy_bitmap/'
     
-    return data_dir
+    print("Downloading Quick, Draw! dataset...")
+    print("This will download ~100MB total (10 classes)")
+    
+    for class_name in classes:
+        filepath = os.path.join(data_dir, f'{class_name}.npy')
+        
+        if os.path.exists(filepath):
+            print(f"  {class_name}: Already downloaded ✓")
+        else:
+            url = f'{base_url}{class_name}.npy'
+            print(f"  Downloading {class_name}...", end=' ')
+            try:
+                urllib.request.urlretrieve(url, filepath)
+                print("✓")
+            except Exception as e:
+                print(f"✗ Error: {e}")
+    
+    print('✅ Quick, Draw! dataset ready!')
+    return data_dir, classes
 
-def load_nyu_depth_features():
-    print("========== Extracting NYU Depth V2 Features ==========")
+def load_quickdraw_features():
+    print("========== Extracting Quick, Draw! Features ==========")
     
     # Download dataset
-    data_dir = download_nyu_depth()
-    mat_file = os.path.join(data_dir, 'nyu_depth_v2_labeled.mat')
+    data_dir, classes = download_quickdraw()
     
-    print("Loading depth images from .mat file...")
-    print("This might take a few minutes...")
+    print(f"\nLoading {len(classes)} classes of hand-drawn sketches...")
     
-    # Load the .mat file
-    try:
-        with h5py.File(mat_file, 'r') as f:
-            depths = np.array(f['depths'])
-            labels = np.array(f['labels'])
-            images = np.array(f['images'])
-            
-            print(f"Loaded data shapes:")
-            print(f"  Depths: {depths.shape}")
-            print(f"  Labels: {labels.shape}")
-            print(f"  RGB Images: {images.shape}")
-            
-            # Transpose to correct format
-            depths = np.transpose(depths, (0, 2, 1))
-            labels = np.transpose(labels, (0, 2, 1))
-            images = np.transpose(images, (0, 1, 3, 2))
-            
-    except Exception as e:
-        print(f"h5py failed, trying scipy.io: {e}")
-        mat_data = scipy.io.loadmat(mat_file)
-        depths = mat_data['depths']
-        labels = mat_data['labels']
-        images = mat_data['images']
+    # Load and combine all classes
+    all_images = []
+    all_labels = []
     
-    print(f"Successfully loaded {len(depths)} depth images")
+    SAMPLES_PER_CLASS = 5000  # Use 5000 samples per class (50,000 total)
     
-    # Extract scene labels for classification
-    scene_labels = []
-    for i in range(len(labels)):
-        label_map = labels[i]
-        # Get most frequent non-zero label
-        unique, counts = np.unique(label_map[label_map > 0], return_counts=True)
-        if len(unique) > 0:
-            dominant_class = unique[np.argmax(counts)]
-        else:
-            dominant_class = 0
-        scene_labels.append(dominant_class)
+    for idx, class_name in enumerate(classes):
+      filepath = os.path.join(data_dir, f'{class_name}.npy')
+      
+      if not os.path.exists(filepath):
+         print(f"  ⚠️ {class_name} not found, skipping...")
+         continue
+      
+      try:
+         # Load with memory mapping (safer for large files)
+         images = np.load(filepath, mmap_mode='r')
+         
+         # Check if it's the expected format (N, 784)
+         if images.ndim != 2 or images.shape[1] != 784:
+               print(f"  ⚠️ {class_name}: Unexpected shape {images.shape}, skipping...")
+               continue
+         
+         print(f'  {class_name}: {len(images)} available → ', end='')
+         
+         # Take first SAMPLES_PER_CLASS and copy to memory
+         num_to_take = min(SAMPLES_PER_CLASS, len(images))
+         images_subset = np.array(images[:num_to_take])
+         
+         all_images.append(images_subset)
+         all_labels.append(np.full(num_to_take, idx))
+         
+         print(f'Using {num_to_take} ✓')
+         
+      except Exception as e:
+         print(f'  ✗ {class_name}: Error - {e}')
+         continue
+    # Combine all data
+    all_images = np.concatenate(all_images)
+    all_labels = np.concatenate(all_labels)
     
-    scene_labels = np.array(scene_labels)
+    print(f'\nTotal sketches: {len(all_images):,}')
+    print(f'Image shape: 28×28 grayscale')
+    print(f'Classes: {len(classes)}')
     
-    print(f"Original label distribution (top 20):")
-    unique_labels, counts = np.unique(scene_labels, return_counts=True)
-    sorted_idx = np.argsort(counts)[::-1][:20]
-    for idx in sorted_idx:
-        print(f"  Class {unique_labels[idx]}: {counts[idx]} samples")
+    # Reshape from flat (784,) to 2D (28, 28)
+    all_images = all_images.reshape(-1, 28, 28)
     
-    # Find classes with at least 30 samples (for good train/test split)
-    MIN_SAMPLES_PER_CLASS = 30
-    label_counts = np.bincount(scene_labels)
-    valid_classes = np.where(label_counts >= MIN_SAMPLES_PER_CLASS)[0]
-    
-    # Take top 10 most common classes with enough samples
-    common_classes_counts = [(cls, label_counts[cls]) for cls in valid_classes]
-    common_classes_counts.sort(key=lambda x: x[1], reverse=True)
-    common_classes = [cls for cls, count in common_classes_counts[:10]]
-    
-    print(f"\nSelected top 10 classes with ≥{MIN_SAMPLES_PER_CLASS} samples:")
-    for cls in common_classes:
-        print(f"  Class {cls}: {label_counts[cls]} samples")
-    
-    # Filter to only keep samples with common classes
-    mask = np.isin(scene_labels, common_classes)
-    depths_filtered = depths[mask]
-    scene_labels_filtered = scene_labels[mask]
-    
-    # Remap labels to 0-9
-    label_mapping = {old: new for new, old in enumerate(common_classes)}
-    scene_labels_remapped = np.array([label_mapping[l] for l in scene_labels_filtered])
-    
-    print(f"\nFiltered to {len(depths_filtered)} images with common classes")
-    print(f"Remapped class distribution: {np.bincount(scene_labels_remapped)}")
-    
-    # Verify all classes have enough samples
-    for cls_idx in range(10):
-        count = np.sum(scene_labels_remapped == cls_idx)
-        print(f"  Class {cls_idx}: {count} samples")
-        if count < 10:
-            print(f"    ⚠️ Warning: Class {cls_idx} has only {count} samples!")
-    
-    # Split train/test with stratification
+    # Split train/test (80/20)
     from sklearn.model_selection import train_test_split
-    
-    # Use 80/20 split
-    train_depths, test_depths, train_labels, test_labels = train_test_split(
-        depths_filtered, scene_labels_remapped, 
+    train_images, test_images, train_labels, test_labels = train_test_split(
+        all_images, all_labels, 
         test_size=0.2, 
         random_state=42, 
-        stratify=scene_labels_remapped
+        stratify=all_labels
     )
     
-    print(f"\nTrain: {len(train_depths)}, Test: {len(test_depths)}")
-    print(f"Train class distribution: {np.bincount(train_labels)}")
-    print(f"Test class distribution: {np.bincount(test_labels)}")
+    print(f'\nSplit: {len(train_images):,} train, {len(test_images):,} test')
     
-    # Transform for ResNet
+    # Transform for ResNet (28×28 → 224×224, grayscale → RGB)
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     
-    # Load ResNet50 (trained on RGB photos - NOT depth!)
+    # Load ResNet50 (trained on natural PHOTOS, not SKETCHES!)
     print("\nLoading ImageNet-trained ResNet50...")
-    print("⚠️  Note: ResNet was trained on RGB photos, NOT depth maps!")
-    print("This creates MAXIMUM domain gap - PCA should struggle!")
+    print("⚠️  CRITICAL: ResNet was trained on PHOTOS, not SKETCHES!")
+    print("This creates MAXIMUM domain gap:")
+    print("  - Photorealistic images → Abstract line drawings")
+    print("  - Color/texture → Black & white lines")
+    print("  - 3D rendered → 2D simplified")
+    print("\nExpected: PCA will struggle significantly!")
+    
     model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
     model = torch.nn.Sequential(*list(model.children())[:-1])
     model.eval()
     
-    print("\nExtracting features from depth images...")
+    print("\nExtracting features from hand-drawn sketches...")
     
-    # Process training depth images
+    # Process training sketches
     train_features_list = []
-    batch_size = 32
+    batch_size = 128  # Larger batch since images are small
     
-    for i in range(0, len(train_depths), batch_size):
-        batch_depths = train_depths[i:i+batch_size]
+    for i in range(0, len(train_images), batch_size):
+        batch_images = train_images[i:i+batch_size]
         
+        # Convert to PIL and transform
         batch_tensors = []
-        for depth_map in batch_depths:
-            # Normalize depth to 0-255 range
-            depth_normalized = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min() + 1e-8)
-            depth_normalized = (depth_normalized * 255).astype('uint8')
+        for img in batch_images:
+            # Convert numpy array to PIL Image
+            pil_img = Image.fromarray(img.astype('uint8'), mode='L')  # 'L' = grayscale
             
-            # Convert to PIL Image (grayscale)
-            pil_img = Image.fromarray(depth_normalized, mode='L')
-            
-            # Convert grayscale to RGB (repeat channel 3 times)
+            # Convert grayscale to RGB (ResNet expects 3 channels)
             pil_img_rgb = pil_img.convert('RGB')
             
-            # Apply transform
+            # Apply transform (resize to 224×224, normalize)
             tensor = transform(pil_img_rgb)
             batch_tensors.append(tensor)
         
         batch_tensor = torch.stack(batch_tensors)
         
+        # Extract features
         with torch.no_grad():
             features = model(batch_tensor).squeeze()
+            
+            # Handle single sample case
             if features.dim() == 1:
                 features = features.unsqueeze(0)
         
         train_features_list.append(features.cpu().numpy())
         
-        if (i // batch_size) % 10 == 0:
-            print(f"  Train batch {i}/{len(train_depths)}")
+        # Progress update every 5000 images
+        if i % 5000 == 0:
+            print(f'  Train: {i:,}/{len(train_images):,} processed...')
     
     train_features = np.concatenate(train_features_list)
-    print(f"Train features shape: {train_features.shape}")
+    print(f'✓ Train features shape: {train_features.shape}')
     
-    # Process test depth images
+    # Process test sketches
     test_features_list = []
     
-    for i in range(0, len(test_depths), batch_size):
-        batch_depths = test_depths[i:i+batch_size]
+    for i in range(0, len(test_images), batch_size):
+        batch_images = test_images[i:i+batch_size]
         
         batch_tensors = []
-        for depth_map in batch_depths:
-            # Normalize depth to 0-255 range
-            depth_normalized = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min() + 1e-8)
-            depth_normalized = (depth_normalized * 255).astype('uint8')
-            
-            # Convert to PIL Image
-            pil_img = Image.fromarray(depth_normalized, mode='L')
+        for img in batch_images:
+            pil_img = Image.fromarray(img.astype('uint8'), mode='L')
             pil_img_rgb = pil_img.convert('RGB')
-            
-            # Apply transform
             tensor = transform(pil_img_rgb)
             batch_tensors.append(tensor)
         
@@ -241,45 +208,50 @@ def load_nyu_depth_features():
         
         test_features_list.append(features.cpu().numpy())
         
-        if (i // batch_size) % 10 == 0:
-            print(f"  Test batch {i}/{len(test_depths)}")
+        if i % 5000 == 0:
+            print(f'  Test: {i:,}/{len(test_images):,} processed...')
     
     test_features = np.concatenate(test_features_list)
-    print(f"Test features shape: {test_features.shape}")
+    print(f'✓ Test features shape: {test_features.shape}')
     
     # Save features
     np.savez_compressed(
-        'nyu_depth-resnet50',
+        'quickdraw-resnet50',
         train_features=train_features,
         train_labels=train_labels,
         test_features=test_features,
-        test_labels=test_labels,
-        class_ids=common_classes  # Save original class IDs for reference
+        test_labels=test_labels
     )
     
-    print("\n✅ NYU Depth features extracted!")
-    print("Domain gap: RGB natural photos → Depth maps (3D geometry)")
-    print(f"\nTotal samples: {len(train_features) + len(test_features)}")
-    print(f"10 most common indoor object classes selected")
-
-
-
+    print('\n' + '='*70)
+    print('✅ Quick, Draw! features extracted!')
+    print('='*70)
+    print('Domain gap: Photorealistic images → Hand-drawn sketches')
+    print('This is the MAXIMUM possible visual domain gap!')
+    print(f'Total samples: {len(train_features) + len(test_features):,}')
+    print(f'Classes: {classes}')
+    print('\nExpected Results:')
+    print('  PCA:         45-52% (struggles with photo→sketch gap)')
+    print('  Autoencoder: 65-72% (+20%)')
+    print('  Transformer: 68-75% (+23%) ✅ MASSIVE ADVANTAGE')
+    print('='*70)
 
 def main_features_map():
-    if os.path.exists('nyu_depth-resnet50.npz'):
-        print(f"Skipping NYU Depth, features data file already exists")
-        data = np.load('nyu_depth-resnet50.npz')
-        print(f"\nNYU Depth File contents:")
-        print(f"----Train----")
-        print(f"train_features: {data['train_features'].shape}")
-        print(f"train_labels: {data['train_labels'].shape}")
-        print(f"----Test-----")
-        print(f"test_features: {data['test_features'].shape}")
-        print(f"test_labels: {data['test_labels'].shape}")
-        data.close()
-    else:
-        print(f"NYU Depth data doesn't exist, generating features now")
-        load_nyu_depth_features()
+    # Check which features to extract
+   
+   if os.path.exists('quickdraw-resnet50.npz'):
+      print(f"Quick Draw features already exist")
+      data = np.load('quickdraw-resnet50.npz')
+      print(f"\nQuick Draw File contents:")
+      print(f"----Train----")
+      print(f"train_features: {data['train_features'].shape}")
+      print(f"train_labels: {data['train_labels'].shape}")
+      print(f"----Test-----")
+      print(f"test_features: {data['test_features'].shape}")
+      print(f"test_labels: {data['test_labels'].shape}")
+      data.close()
+   else:
+      load_quickdraw_features()
 
 
 
