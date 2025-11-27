@@ -9,29 +9,35 @@ import os
 import csv
 import time
 
-
-
-# SAMPLE_SIZE = 2000  # Change to None for full dataset
-SAMPLE_SIZE = None  # Change to None for full dataset
+# ============= COCO Configuration =============
+SAMPLE_SIZE = None  # Use full dataset
 EPOCHS = 20
 EPOCHS_classifier = 10
 LEARNING_RATE = 0.001
 BATCH_SIZE = 128
 
-# we can have test different data (like CIFAR 100, just have the data and change this variabe)
-FEATURE_FILE = 'quickdraw-resnet50.npz'  # Changed
-INPUT_DIM = 2048
-CLASSES = (
-        'truck', 'airplane', 'apple', 'bicycle', 'car',
-        'cat', 'dog', 'house', 'tree', 'umbrella'
-)
+# COCO specific settings
+FEATURE_FILE = 'coco-resnet50.npz'
+INPUT_DIM = 2048  # ResNet50 output
+# CLASSES will be loaded dynamically from the .npz file
 
+# Dimensions to test
+DIMENSIONS_TO_COMPRESS_TO = [2, 4, 8, 16, 32, 64, 128, 256]
 
-# Dimensions to test the compression sweep
-DIMENSIONS_TO_COMPRESS_TO = [2, 4, 8, 16, 32, 64, 128, 256, 300, 400, 512 ] 
+# ============= Utility Functions =============
+def load_coco_classes():
+    """Load COCO class names from saved features"""
+    if os.path.exists(FEATURE_FILE):
+        data = np.load(FEATURE_FILE, allow_pickle=True)
+        class_names = data['class_names']
+        data.close()
+        return tuple(class_names)
+    else:
+        # Default placeholder
+        return ('person', 'car', 'chair', 'book', 'bottle', 
+                'cup', 'bowl', 'laptop', 'cell phone', 'dog')
 
-
-
+CLASSES = load_coco_classes()
 
 def plot_interpretability_trends(dims, metrics_list, method_name):
     """Plot how interpretability changes across dimensions."""
@@ -56,28 +62,14 @@ def plot_interpretability_trends(dims, metrics_list, method_name):
     
     plt.tight_layout()
     plt.savefig(f'../results/{method_name}_interpretability_trends.png', dpi=300)
-
     print(f"  ✅ Interpretability trends saved")
-
-
 
 def plot_results(dims, mse_losses, accuracies, 
                  model_name="autoencoder",
                  x_label="Latent Dimension ($D_{latent}$)"):
-    """
-    Generates sweep analysis plots (MSE + accuracy) for any model type.
-    
-    Args:
-        dims: list or array of tested dimensions
-        mse_losses: list of final reconstruction losses
-        accuracies: list of final test accuracies
-        model_name: used for output filename (e.g., 'autoencoder', 'transformer')
-        x_label: label for x-axis (latent dimension or transformer dimension)
-    """
-    
+    """Generate sweep analysis plots."""
     dims = np.array(dims)
-
-    # ---------------- Plot 1 ----------------
+    
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
     plt.plot(dims, mse_losses, marker='o', linestyle='-', color='tab:blue')
@@ -86,7 +78,6 @@ def plot_results(dims, mse_losses, accuracies,
     plt.ylabel('Final MSE Loss')
     plt.grid(True)
     
-    # ---------------- Plot 2 ----------------
     plt.subplot(1, 2, 2)
     plt.plot(dims, accuracies, marker='o', linestyle='-', color='tab:orange')
     plt.title(f'Classification Accuracy vs. {x_label}')
@@ -95,40 +86,31 @@ def plot_results(dims, mse_losses, accuracies,
     plt.grid(True)
     
     plt.tight_layout()
-
-    # Build the correct filename
     output_plot_filename = f'../results/{model_name}_sweep_results.png'
     plt.savefig(output_plot_filename)
-
-    print(f"\n--- Plots saved successfully to '{output_plot_filename}' ---")
-
-
-
+    print(f"\n--- Plots saved to '{output_plot_filename}' ---")
 
 def calculate_class_separation(features, labels):
     """Calculate average distance between class centroids."""
+    num_classes = len(np.unique(labels))
     centroids = []
-    for i in range(10):
+    for i in range(num_classes):
         class_features = features[labels == i]
-        centroids.append(np.mean(class_features, axis=0))
+        if len(class_features) > 0:
+            centroids.append(np.mean(class_features, axis=0))
+    
     centroids = np.array(centroids)
     
     distances = []
-    for i in range(10):
-        for j in range(i+1, 10):
+    for i in range(len(centroids)):
+        for j in range(i+1, len(centroids)):
             dist = np.linalg.norm(centroids[i] - centroids[j])
             distances.append(dist)
     
-    return np.mean(distances)
-
-
-# In config.py - ONE shared function
+    return np.mean(distances) if distances else 0.0
 
 def create_tsne_visualization(features_np, labels_np, method_name, dimension, silhouette, separation):
-    """
-    Create t-SNE visualization for ANY dimensionality reduction method.
-    Used by PCA, Autoencoder, and Transformer.
-    """
+    """Create t-SNE visualization."""
     from sklearn.manifold import TSNE
     import matplotlib.pyplot as plt
     
@@ -137,10 +119,11 @@ def create_tsne_visualization(features_np, labels_np, method_name, dimension, si
     features_2d = tsne.fit_transform(features_np)
     
     # Plot
+    num_classes = len(CLASSES)
     plt.figure(figsize=(10, 8))
-    colors = plt.cm.tab10(np.linspace(0, 1, 10))
+    colors = plt.cm.tab10(np.linspace(0, 1, num_classes))
     
-    for i in range(10):
+    for i in range(num_classes):
         mask = labels_np == i
         plt.scatter(features_2d[mask, 0], features_2d[mask, 1], 
                    c=[colors[i]], label=CLASSES[i], 
@@ -150,7 +133,7 @@ def create_tsne_visualization(features_np, labels_np, method_name, dimension, si
               fontsize=14, fontweight='bold')
     plt.xlabel('t-SNE Dimension 1')
     plt.ylabel('t-SNE Dimension 2')
-    plt.legend(loc='best', framealpha=0.9, fontsize=8)
+    plt.legend(loc='best', framealpha=0.9, fontsize=8, ncol=2)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     
@@ -159,12 +142,11 @@ def create_tsne_visualization(features_np, labels_np, method_name, dimension, si
     plt.close()
     print(f"  ✅ Saved to '{output_filename}'")
 
-
 def run_interpretability_analysis(model, train_features, test_features, test_labels, method_name, dimension, create_plot=True):
-    """Run interpretability analysis on Autoencoder or Transformer models."""
+    """Run interpretability analysis."""
     from sklearn.metrics import silhouette_score
     
-    # Extract features from the model
+    # Extract features
     model.eval()
     with torch.no_grad():
         if 'Autoencoder' in method_name:
@@ -181,18 +163,14 @@ def run_interpretability_analysis(model, train_features, test_features, test_lab
     
     print(f"  [{dimension}D] Silhouette: {silhouette:.4f}, Separation: {separation:.2f}")
     
-    # Create visualization using the SHARED function
+    # Create visualization
     if create_plot:
         create_tsne_visualization(reduced_np, labels_np, method_name, dimension, silhouette, separation)
     
     return {'dimension': dimension, 'silhouette': silhouette, 'separation': separation}
 
-
-
-
 def save_results_csv(filename, dims, mse_losses, accuracies, times):
-    """Save numerical results to CSV for later comparison."""
-    
+    """Save results to CSV."""
     with open(filename, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Latent_Dim', 'MSE_Loss', 'Accuracy', 'Training_Time_sec'])
@@ -200,4 +178,3 @@ def save_results_csv(filename, dims, mse_losses, accuracies, times):
             writer.writerow([d, mse, acc, t])
     
     print(f"\n--- Results saved to {filename} ---")
-

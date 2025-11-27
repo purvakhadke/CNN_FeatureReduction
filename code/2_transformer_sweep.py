@@ -36,8 +36,13 @@ if SAMPLE_SIZE != None:
     print("AYYYYYYYY========")
     print("========AYYYYYYYY")
 
-NUM_HEADS = 8  # Number of attention heads
-NUM_LAYERS = 2  # Number of transformer encoder layers
+# NUM_HEADS = 8  # Number of attention heads
+# NUM_LAYERS = 2  # Number of transformer encoder layers
+
+NUM_HEADS = 4  # Fewer heads
+NUM_LAYERS = 1  # Single layer
+
+
 FFN_DIM_MULTIPLIER = 4  # Feedforward dimension = d_model * multiplier
 
 # --- A. Transformer Model ---

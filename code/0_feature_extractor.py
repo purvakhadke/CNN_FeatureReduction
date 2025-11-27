@@ -5,258 +5,229 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import resnet50, ResNet50_Weights
-import torchvision.datasets as datasets
 import numpy as np
 import os
+from PIL import Image
+from sklearn.model_selection import train_test_split
+from pycocotools.coco import COCO
 import urllib.request
-from PIL import Image  # ← ADD THIS LINE
-from sklearn.model_selection import train_test_split  # ← ADD THIS LINE TOO
-# In 0_feature_extractor.py
+import zipfile
 
-def download_quickdraw():
-    """
-    Download Quick, Draw! simplified dataset.
-    """
-    import urllib.request
-    from PIL import Image
-
-    data_dir = './data/quickdraw'
+def download_coco():
+    """Download COCO 2017 TRAINING dataset (more images than validation)."""
+    data_dir = './data/coco'
     os.makedirs(data_dir, exist_ok=True)
     
-    # Select 10 diverse classes (similar diversity to CIFAR-10)
-    classes = [
-        'truck', 
-        'airplane',          # Vehicle (like plane)
-        'apple',            # Fruit/object
-        'bicycle',          # Vehicle
-        'car',              
-        'cat',              # Animal (same as CIFAR-10)
-        'dog',              # Animal (same as CIFAR-10)
-        'house',            # Structure
-        'tree',             # Nature
-        'umbrella'          # Object
+    # Use TRAINING set (118K images) instead of validation (5K images)
+    train_img_url = 'http://images.cocodataset.org/zips/train2017.zip'
+    train_ann_url = 'http://images.cocodataset.org/annotations/annotations_trainval2017.zip'
+    
+    train_img_zip = os.path.join(data_dir, 'train2017.zip')
+    train_ann_zip = os.path.join(data_dir, 'annotations_trainval2017.zip')
+    
+    print("="*70)
+    print("Downloading COCO 2017 TRAINING Dataset")
+    print("="*70)
+    print("⚠️  Training set is ~18GB (larger than validation ~1GB)")
+    print("⚠️  But has MUCH more images per category")
+    print()
+    
+    # Download training images
+    if not os.path.exists(os.path.join(data_dir, 'train2017')):
+        print("Downloading training images (~18GB)...")
+        print("This will take a while...")
+        if not os.path.exists(train_img_zip):
+            urllib.request.urlretrieve(train_img_url, train_img_zip)
+        print("Extracting...")
+        with zipfile.ZipFile(train_img_zip, 'r') as zip_ref:
+            zip_ref.extractall(data_dir)
+        print("✓ Done")
+    else:
+        print("✓ Training images already exist")
+    
+    # Download annotations
+    if not os.path.exists(os.path.join(data_dir, 'annotations')):
+        print("Downloading annotations (~500MB)...")
+        if not os.path.exists(train_ann_zip):
+            urllib.request.urlretrieve(train_ann_url, train_ann_zip)
+        print("Extracting...")
+        with zipfile.ZipFile(train_ann_zip, 'r') as zip_ref:
+            zip_ref.extractall(data_dir)
+        print("✓ Done")
+    else:
+        print("✓ Annotations already exist")
+    
+    print("✅ COCO dataset ready!\n")
+    return data_dir
+
+def load_coco_relaxed():
+    """
+    Load COCO with RELAXED filtering - gets more images.
+    Each image labeled by its MOST PROMINENT object.
+    """
+    print("="*70)
+    print("Extracting COCO Features (RELAXED filtering)")
+    print("="*70)
+    
+    data_dir = download_coco()
+    ann_file = os.path.join(data_dir, 'annotations', 'instances_train2017.json')
+    coco = COCO(ann_file)
+    
+    # Select categories with MOST images available
+    COMMON_CATEGORIES = [
+        'person',      # ~500+ available
+        'car',         # ~500+ available  
+        'chair',       # ~500+ available
+        'dining table', # ~500+ available
+        'motorcycle',  # ~500+ available
+        'bus',         # ~500+ available
+        'truck',       # ~500+ available
+        'bicycle',     # ~500+ available
+        'airplane',    # ~500+ available
+        'train'        # ~500+ available
     ]
     
-    base_url = 'https://storage.googleapis.com/quickdraw_dataset/full/numpy_bitmap/'
+    cats = coco.loadCats(coco.getCatIds())
+    selected_cat_ids = []
+    selected_cat_names = []
+    for cat in cats:
+        if cat['name'] in COMMON_CATEGORIES:
+            selected_cat_ids.append(cat['id'])
+            selected_cat_names.append(cat['name'])
     
-    print("Downloading Quick, Draw! dataset...")
-    print("This will download ~100MB total (10 classes)")
+    print(f"Selected {len(selected_cat_names)} categories: {selected_cat_names}\n")
     
-    for class_name in classes:
-        filepath = os.path.join(data_dir, f'{class_name}.npy')
-        
-        if os.path.exists(filepath):
-            print(f"  {class_name}: Already downloaded ✓")
-        else:
-            url = f'{base_url}{class_name}.npy'
-            print(f"  Downloading {class_name}...", end=' ')
-            try:
-                urllib.request.urlretrieve(url, filepath)
-                print("✓")
-            except Exception as e:
-                print(f"✗ Error: {e}")
-    
-    print('✅ Quick, Draw! dataset ready!')
-    return data_dir, classes
-
-def load_quickdraw_features():
-    print("========== Extracting Quick, Draw! Features ==========")
-    
-    # Download dataset
-    data_dir, classes = download_quickdraw()
-    
-    print(f"\nLoading {len(classes)} classes of hand-drawn sketches...")
-    
-    # Load and combine all classes
+    # RELAXED FILTERING: Just need the category to be PRESENT
     all_images = []
     all_labels = []
     
-    SAMPLES_PER_CLASS = 5000  # Use 5000 samples per class (50,000 total)
+    # MAX_IMAGES_PER_CLASS = 500  # Target per class
+    MAX_IMAGES_PER_CLASS = 6000  # Target per class
     
-    for idx, class_name in enumerate(classes):
-      filepath = os.path.join(data_dir, f'{class_name}.npy')
-      
-      if not os.path.exists(filepath):
-         print(f"  ⚠️ {class_name} not found, skipping...")
-         continue
-      
-      try:
-         # Load with memory mapping (safer for large files)
-         images = np.load(filepath, mmap_mode='r')
-         
-         # Check if it's the expected format (N, 784)
-         if images.ndim != 2 or images.shape[1] != 784:
-               print(f"  ⚠️ {class_name}: Unexpected shape {images.shape}, skipping...")
-               continue
-         
-         print(f'  {class_name}: {len(images)} available → ', end='')
-         
-         # Take first SAMPLES_PER_CLASS and copy to memory
-         num_to_take = min(SAMPLES_PER_CLASS, len(images))
-         images_subset = np.array(images[:num_to_take])
-         
-         all_images.append(images_subset)
-         all_labels.append(np.full(num_to_take, idx))
-         
-         print(f'Using {num_to_take} ✓')
-         
-      except Exception as e:
-         print(f'  ✗ {class_name}: Error - {e}')
-         continue
-    # Combine all data
-    all_images = np.concatenate(all_images)
-    all_labels = np.concatenate(all_labels)
+    for idx, cat_id in enumerate(selected_cat_ids):
+        img_ids = coco.getImgIds(catIds=[cat_id])
+        
+        count = 0
+        for img_id in img_ids:
+            if count >= MAX_IMAGES_PER_CLASS:
+                break
+            
+            # Get annotations for this image
+            ann_ids = coco.getAnnIds(imgIds=img_id, catIds=[cat_id])
+            anns = coco.loadAnns(ann_ids)
+            
+            # RELAXED: Just need at least one instance of the category
+            if len(anns) > 0:
+                img_info = coco.loadImgs(img_id)[0]
+                all_images.append(img_info)
+                all_labels.append(idx)
+                count += 1
+        
+        print(f"  {selected_cat_names[idx]}: {count} images")
     
-    print(f'\nTotal sketches: {len(all_images):,}')
-    print(f'Image shape: 28×28 grayscale')
-    print(f'Classes: {len(classes)}')
+    print(f"\nTotal images collected: {len(all_images)}")
     
-    # Reshape from flat (784,) to 2D (28, 28)
-    all_images = all_images.reshape(-1, 28, 28)
-    
-    # Split train/test (80/20)
-    from sklearn.model_selection import train_test_split
-    train_images, test_images, train_labels, test_labels = train_test_split(
-        all_images, all_labels, 
-        test_size=0.2, 
-        random_state=42, 
-        stratify=all_labels
-    )
-    
-    print(f'\nSplit: {len(train_images):,} train, {len(test_images):,} test')
-    
-    # Transform for ResNet (28×28 → 224×224, grayscale → RGB)
-    transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
-    
-    # Load ResNet50 (trained on natural PHOTOS, not SKETCHES!)
-    print("\nLoading ImageNet-trained ResNet50...")
-    print("⚠️  CRITICAL: ResNet was trained on PHOTOS, not SKETCHES!")
-    print("This creates MAXIMUM domain gap:")
-    print("  - Photorealistic images → Abstract line drawings")
-    print("  - Color/texture → Black & white lines")
-    print("  - 3D rendered → 2D simplified")
-    print("\nExpected: PCA will struggle significantly!")
-    
+    # Load ResNet50
+    print("\nLoading ResNet50...")
     model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
     model = torch.nn.Sequential(*list(model.children())[:-1])
     model.eval()
     
-    print("\nExtracting features from hand-drawn sketches...")
+    transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                           std=[0.229, 0.224, 0.225])
+    ])
     
-    # Process training sketches
-    train_features_list = []
-    batch_size = 128  # Larger batch since images are small
+    print("\nExtracting features...")
     
-    for i in range(0, len(train_images), batch_size):
-        batch_images = train_images[i:i+batch_size]
-        
-        # Convert to PIL and transform
-        batch_tensors = []
-        for img in batch_images:
-            # Convert numpy array to PIL Image
-            pil_img = Image.fromarray(img.astype('uint8'), mode='L')  # 'L' = grayscale
-            
-            # Convert grayscale to RGB (ResNet expects 3 channels)
-            pil_img_rgb = pil_img.convert('RGB')
-            
-            # Apply transform (resize to 224×224, normalize)
-            tensor = transform(pil_img_rgb)
-            batch_tensors.append(tensor)
-        
-        batch_tensor = torch.stack(batch_tensors)
-        
-        # Extract features
-        with torch.no_grad():
-            features = model(batch_tensor).squeeze()
-            
-            # Handle single sample case
-            if features.dim() == 1:
-                features = features.unsqueeze(0)
-        
-        train_features_list.append(features.cpu().numpy())
-        
-        # Progress update every 5000 images
-        if i % 5000 == 0:
-            print(f'  Train: {i:,}/{len(train_images):,} processed...')
+    features_list = []
+    labels_list = []
     
-    train_features = np.concatenate(train_features_list)
-    print(f'✓ Train features shape: {train_features.shape}')
+    batch_size = 32
+    img_dir = os.path.join(data_dir, 'train2017')
     
-    # Process test sketches
-    test_features_list = []
-    
-    for i in range(0, len(test_images), batch_size):
-        batch_images = test_images[i:i+batch_size]
+    for i in range(0, len(all_images), batch_size):
+        batch_images = all_images[i:i+batch_size]
+        batch_labels = all_labels[i:i+batch_size]
         
         batch_tensors = []
-        for img in batch_images:
-            pil_img = Image.fromarray(img.astype('uint8'), mode='L')
-            pil_img_rgb = pil_img.convert('RGB')
-            tensor = transform(pil_img_rgb)
-            batch_tensors.append(tensor)
+        batch_valid_labels = []
+        
+        for img_info, label in zip(batch_images, batch_labels):
+            img_path = os.path.join(img_dir, img_info['file_name'])
+            
+            try:
+                img = Image.open(img_path).convert('RGB')
+                tensor = transform(img)
+                batch_tensors.append(tensor)
+                batch_valid_labels.append(label)
+            except Exception as e:
+                continue
+        
+        if len(batch_tensors) == 0:
+            continue
         
         batch_tensor = torch.stack(batch_tensors)
         
         with torch.no_grad():
-            features = model(batch_tensor).squeeze()
-            if features.dim() == 1:
-                features = features.unsqueeze(0)
+            batch_features = model(batch_tensor).squeeze()
+            if batch_features.dim() == 1:
+                batch_features = batch_features.unsqueeze(0)
         
-        test_features_list.append(features.cpu().numpy())
+        features_list.append(batch_features.cpu().numpy())
+        labels_list.extend(batch_valid_labels)
         
-        if i % 5000 == 0:
-            print(f'  Test: {i:,}/{len(test_images):,} processed...')
+        if i % 500 == 0:
+            print(f"  Processed {i}/{len(all_images)} images...")
     
-    test_features = np.concatenate(test_features_list)
-    print(f'✓ Test features shape: {test_features.shape}')
+    all_features = np.concatenate(features_list)
+    all_labels = np.array(labels_list)
     
-    # Save features
+    print(f"\n✓ Features: {all_features.shape}")
+    print(f"✓ Labels: {all_labels.shape}")
+    
+    # Split 80/20
+    train_features, test_features, train_labels, test_labels = train_test_split(
+        all_features, all_labels,
+        test_size=0.2,
+        random_state=42,
+        stratify=all_labels
+    )
+    
+    print(f"\nTrain: {len(train_features)} samples")
+    print(f"Test:  {len(test_features)} samples")
+    
+    # Save
     np.savez_compressed(
-        'quickdraw-resnet50',
+        'coco-resnet50',
         train_features=train_features,
         train_labels=train_labels,
         test_features=test_features,
-        test_labels=test_labels
+        test_labels=test_labels,
+        class_names=selected_cat_names
     )
     
-    print('\n' + '='*70)
-    print('✅ Quick, Draw! features extracted!')
-    print('='*70)
-    print('Domain gap: Photorealistic images → Hand-drawn sketches')
-    print('This is the MAXIMUM possible visual domain gap!')
-    print(f'Total samples: {len(train_features) + len(test_features):,}')
-    print(f'Classes: {classes}')
-    print('\nExpected Results:')
-    print('  PCA:         45-52% (struggles with photo→sketch gap)')
-    print('  Autoencoder: 65-72% (+20%)')
-    print('  Transformer: 68-75% (+23%) ✅ MASSIVE ADVANTAGE')
-    print('='*70)
-
-def main_features_map():
-    # Check which features to extract
-   
-   if os.path.exists('quickdraw-resnet50.npz'):
-      print(f"Quick Draw features already exist")
-      data = np.load('quickdraw-resnet50.npz')
-      print(f"\nQuick Draw File contents:")
-      print(f"----Train----")
-      print(f"train_features: {data['train_features'].shape}")
-      print(f"train_labels: {data['train_labels'].shape}")
-      print(f"----Test-----")
-      print(f"test_features: {data['test_features'].shape}")
-      print(f"test_labels: {data['test_labels'].shape}")
-      data.close()
-   else:
-      load_quickdraw_features()
-
-
+    print("\n" + "="*70)
+    print("✅ COCO features extracted!")
+    print("="*70)
+    print(f"Total: {len(train_features) + len(test_features)} images")
+    print(f"Classes: {len(selected_cat_names)}")
+    print("="*70)
 
 def main():
-    main_features_map()
+    if os.path.exists('coco-resnet50.npz'):
+        print("COCO features already exist. Delete coco-resnet50.npz to re-extract.")
+        data = np.load('coco-resnet50.npz', allow_pickle=True)
+        print(f"\nExisting dataset:")
+        print(f"  Train: {data['train_features'].shape}")
+        print(f"  Test:  {data['test_features'].shape}")
+        print(f"  Classes: {list(data['class_names'])}")
+        data.close()
+    else:
+        load_coco_relaxed()
 
 if __name__ == "__main__":
     main()
