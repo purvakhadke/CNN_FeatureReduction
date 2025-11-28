@@ -9,40 +9,39 @@ import os
 import csv
 import time
 
-# ============= CIFAR-100 Configuration =============
-SAMPLE_SIZE = None  # Use full dataset (50,000 train, 10,000 test)
+# ============= Stanford Cars Configuration =============
+SAMPLE_SIZE = None  # Use full dataset
 EPOCHS = 20
-EPOCHS_classifier = 10
+EPOCHS_classifier = 15  # Slightly more epochs for 196 classes
 LEARNING_RATE = 0.001
 BATCH_SIZE = 128
 
-# CIFAR-100 specific settings
-FEATURE_FILE = 'cifar100-resnet50.npz'
+# Stanford Cars specific settings
+FEATURE_FILE = 'stanford_cars-resnet50.npz'
 INPUT_DIM = 2048  # ResNet50 output
 
-# 100 classes - CIFAR-100 superclasses
-# Will be loaded dynamically from .npz file
+# 196 car model classes
 CLASSES = None  # Loaded at runtime
 
-# Dimensions to test - go higher since we have 50K training samples!
+# Dimensions to test
 DIMENSIONS_TO_COMPRESS_TO = [2, 4, 8, 16, 32, 64, 128, 256, 512]
 
 # ============= Helper function to load classes =============
-def load_cifar100_classes():
-    """Load CIFAR-100 class names from saved features"""
+def load_stanford_cars_classes():
+    """Load Stanford Cars class names from saved features"""
     if os.path.exists(FEATURE_FILE):
         data = np.load(FEATURE_FILE, allow_pickle=True)
         class_names = data['class_names']
         data.close()
         return tuple(class_names)
     else:
-        # Default placeholder (100 classes)
-        return tuple([f"class_{i}" for i in range(100)])
+        # Default placeholder (196 classes)
+        return tuple([f"car_model_{i}" for i in range(196)])
 
 # Load classes
-CLASSES = load_cifar100_classes()
+CLASSES = load_stanford_cars_classes()
 
-# ============= Same utility functions as before =============
+# ============= Same utility functions =============
 
 def plot_interpretability_trends(dims, metrics_list, method_name):
     """Plot how interpretability changes across dimensions."""
@@ -97,7 +96,12 @@ def calculate_class_separation(features, labels):
     """Calculate average distance between class centroids."""
     unique_labels = np.unique(labels)
     centroids = []
-    for label in unique_labels:
+    
+    # Sample classes for efficiency (196 classes is a lot!)
+    sample_size = min(50, len(unique_labels))
+    sampled_labels = np.random.choice(unique_labels, sample_size, replace=False)
+    
+    for label in sampled_labels:
         class_features = features[labels == label]
         if len(class_features) > 0:
             centroids.append(np.mean(class_features, axis=0))
@@ -113,14 +117,16 @@ def calculate_class_separation(features, labels):
     return np.mean(distances) if distances else 0.0
 
 def create_tsne_visualization(features_np, labels_np, method_name, dimension, silhouette, separation):
-    """Create t-SNE visualization - sample subset for 100 classes."""
+    """Create t-SNE visualization - sample subset for 196 classes."""
     from sklearn.manifold import TSNE
     import matplotlib.pyplot as plt
     
-    # For 100 classes, sample data for clearer visualization
-    max_samples_per_class = 50
+    # For 196 classes, sample heavily for visualization
+    max_samples_per_class = 20  # Only 20 samples per class
     indices = []
-    for label in range(min(100, len(np.unique(labels_np)))):
+    unique_labels = np.unique(labels_np)
+    
+    for label in unique_labels:
         class_indices = np.where(labels_np == label)[0]
         if len(class_indices) > max_samples_per_class:
             class_indices = np.random.choice(class_indices, max_samples_per_class, replace=False)
@@ -133,17 +139,17 @@ def create_tsne_visualization(features_np, labels_np, method_name, dimension, si
     tsne = TSNE(n_components=2, random_state=42, perplexity=30)
     features_2d = tsne.fit_transform(features_sampled)
     
-    # Plot with many classes - use smaller markers, no legend
-    plt.figure(figsize=(12, 10))
+    # Plot with many classes - use very small markers, no legend
+    plt.figure(figsize=(14, 12))
     scatter = plt.scatter(features_2d[:, 0], features_2d[:, 1], 
-                         c=labels_sampled, cmap='tab20', 
-                         alpha=0.6, s=10, edgecolors='none')
+                         c=labels_sampled, cmap='tab20c', 
+                         alpha=0.5, s=5, edgecolors='none')
     
-    plt.title(f'{method_name}: t-SNE Projection ({dimension}D)\nSilhouette: {silhouette:.4f}, Separation: {separation:.2f}', 
+    plt.title(f'{method_name}: t-SNE Projection ({dimension}D) - 196 Car Models\nSilhouette: {silhouette:.4f}, Separation: {separation:.2f}', 
               fontsize=14, fontweight='bold')
     plt.xlabel('t-SNE Dimension 1')
     plt.ylabel('t-SNE Dimension 2')
-    plt.colorbar(scatter, label='Class ID')
+    plt.colorbar(scatter, label='Car Model ID')
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     
@@ -156,8 +162,8 @@ def run_interpretability_analysis(model, train_features, test_features, test_lab
     """Run interpretability analysis."""
     from sklearn.metrics import silhouette_score
     
-    # Sample for silhouette score (it's slow with 10K samples)
-    max_samples = 5000
+    # Sample heavily for silhouette score (196 classes, ~8K test samples)
+    max_samples = 3000
     if len(test_features) > max_samples:
         indices = np.random.choice(len(test_features), max_samples, replace=False)
         test_features_sample = test_features[indices]
