@@ -46,53 +46,90 @@ NUM_LAYERS = 1  # Single layer
 FFN_DIM_MULTIPLIER = 4  # Feedforward dimension = d_model * multiplier
 
 # --- A. Transformer Model ---
+import math
+
 class TransformerEncoder(nn.Module):
     def __init__(self, d_model):
         super(TransformerEncoder, self).__init__()
         self.d_model = d_model
+        self.num_tokens = 16          # Split 2048 into 16 tokens
+        self.token_dim = INPUT_DIM // self.num_tokens  # 128 each
         
-        # Input projection: 2048 -> d_model
-        self.input_proj = nn.Linear(INPUT_DIM, d_model)
+        # Project each token to d_model
+        self.input_proj = nn.Linear(self.token_dim, d_model)
         
-        # Transformer encoder layers
-        # Adjust num_heads if d_model is not divisible by NUM_HEADS
-        num_heads = min(NUM_HEADS, d_model) if d_model >= NUM_HEADS else d_model
-        # Ensure d_model is divisible by num_heads
+        # Positional encoding (learnable)
+        self.pos_embed = nn.Parameter(torch.randn(1, self.num_tokens, d_model))
+        
+        # Transformer: 4 layers, 8 heads (as per proposal)
+        num_heads = 8
+        # Ensure d_model divisible by num_heads
+        if d_model < num_heads:
+            num_heads = d_model
         while d_model % num_heads != 0 and num_heads > 1:
             num_heads -= 1
-            
+        
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=d_model,
             nhead=num_heads,
-            dim_feedforward=d_model * FFN_DIM_MULTIPLIER,
+            dim_feedforward=d_model * 4,
             dropout=0.1,
-            activation='relu',
             batch_first=True
         )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=NUM_LAYERS)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=4)
         
-        # Output projection: d_model -> 2048 (for reconstruction)
-        self.output_proj = nn.Linear(d_model, INPUT_DIM)
+        # Output projection for reconstruction
+        self.output_proj = nn.Linear(d_model, self.token_dim)
+        
+        # Learned projection to final d_model dimensions (for classification)
+        self.cls_proj = nn.Linear(self.num_tokens * d_model, d_model)
         
     def forward(self, x):
-        # x shape: (batch_size, INPUT_DIM)
-        # Add sequence dimension (treat as sequence of length 1)
-        x = x.unsqueeze(1)  # (batch_size, 1, INPUT_DIM)
+        batch_size = x.shape[0]
         
-        # Project to d_model
-        encoded = self.input_proj(x)  # (batch_size, 1, d_model)
+        # Split into 16 tokens: (batch, 2048) -> (batch, 16, 128)
+        x = x.view(batch_size, self.num_tokens, self.token_dim)
         
-        # Apply transformer encoder
-        transformed = self.transformer_encoder(encoded)  # (batch_size, 1, d_model)
+        # Project tokens to d_model
+        x = self.input_proj(x)  # (batch, 16, d_model)
         
-        # Project back to INPUT_DIM for reconstruction
-        reconstructed = self.output_proj(transformed)  # (batch_size, 1, INPUT_DIM)
+        # Add positional encoding
+        x = x + self.pos_embed
         
-        # Remove sequence dimension
-        reconstructed = reconstructed.squeeze(1)  # (batch_size, INPUT_DIM)
-        transformed_features = transformed.squeeze(1)  # (batch_size, d_model)
+        # Transformer encoder
+        x = self.transformer_encoder(x)  # (batch, 16, d_model)
         
-        return reconstructed, transformed_features
+        # Store attention output for analysis later
+        self.last_hidden = x
+        
+        # Reconstruction: project back to original token size
+        reconstructed = self.output_proj(x)  # (batch, 16, 128)
+        reconstructed = reconstructed.view(batch_size, -1)  # (batch, 2048)
+        
+        # Classification features: flatten and project
+        flat = x.view(batch_size, -1)  # (batch, 16 * d_model)
+        cls_features = self.cls_proj(flat)  # (batch, d_model)
+        
+        return reconstructed, cls_features
+    
+    def get_attention_weights(self, x):
+        """Extract attention weights for interpretability analysis."""
+        batch_size = x.shape[0]
+        
+        # Tokenize
+        x = x.view(batch_size, self.num_tokens, self.token_dim)
+        x = self.input_proj(x)
+        x = x + self.pos_embed
+        
+        # Get attention from first layer
+        # Note: This requires hooks or manual attention computation
+        # Simplified version - just return token importance via norm
+        with torch.no_grad():
+            out = self.transformer_encoder(x)
+            # Token importance = L2 norm of each token's output
+            token_importance = torch.norm(out, dim=-1)  # (batch, 16)
+        
+        return token_importance
 
 # --- B. Downstream Classifier Model ---
 class Classifier(nn.Module):
@@ -254,7 +291,11 @@ def main_sweep():
             "Transformer", d_model
         )
         interpretability_metrics.append(metrics)
-    
+
+        # 6. ATTENTION WEIGHT ANALYSIS (add this)
+        if d_model == 128:
+            analyze_attention_weights(transformer_model, test_features, test_labels)
+
     
     plot_interpretability_trends(DIMENSIONS_TO_COMPRESS_TO, interpretability_metrics, 'transformer')
 

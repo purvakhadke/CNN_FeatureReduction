@@ -11,9 +11,11 @@ import time
 
 # ============= CIFAR-100 Configuration =============
 SAMPLE_SIZE = None  # Use full dataset (50,000 train, 10,000 test)
-EPOCHS = 20
 EPOCHS_classifier = 10
-LEARNING_RATE = 0.001
+EPOCHS = 40  # Was 20
+LEARNING_RATE = 0.0005  # Slightly lower for stability
+
+
 BATCH_SIZE = 128
 
 # CIFAR-100 specific settings
@@ -41,6 +43,34 @@ def load_cifar100_classes():
 
 # Load classes
 CLASSES = load_cifar100_classes()
+
+def analyze_attention_weights(model, test_features, test_labels, num_samples=500):
+    """Analyze which tokens are most important."""
+    model.eval()
+    
+    # Sample subset
+    indices = np.random.choice(len(test_features), num_samples, replace=False)
+    sample_features = test_features[indices]
+    sample_labels = test_labels[indices]
+    
+    with torch.no_grad():
+        token_importance = model.get_attention_weights(sample_features)
+    
+    # Average importance per token
+    avg_importance = token_importance.mean(dim=0).numpy()
+    
+    # Plot
+    plt.figure(figsize=(10, 5))
+    plt.bar(range(16), avg_importance)
+    plt.xlabel('Token Index (each = 128 dims of ResNet features)')
+    plt.ylabel('Average Importance (L2 norm)')
+    plt.title('Token Importance Across 16 Feature Segments')
+    plt.savefig('../results/transformer_token_importance.png', dpi=300)
+    plt.close()
+    
+    print(f"Token importance saved to '../results/transformer_token_importance.png'")
+    
+    return avg_importance
 
 # ============= Same utility functions as before =============
 
