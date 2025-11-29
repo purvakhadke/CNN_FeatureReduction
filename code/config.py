@@ -12,7 +12,7 @@ import time
 # ============= CIFAR-100 Configuration =============
 SAMPLE_SIZE = None  # Use full dataset (50,000 train, 10,000 test)
 EPOCHS_classifier = 10
-EPOCHS = 40  # Was 20
+EPOCHS = 100 #40  # Was 20
 LEARNING_RATE = 0.0005  # Slightly lower for stability
 
 
