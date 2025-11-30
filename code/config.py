@@ -27,7 +27,7 @@ INPUT_DIM = 2048  # ResNet50 output
 CLASSES = None  # Loaded at runtime
 
 # Dimensions to test - go higher since we have 50K training samples!
-DIMENSIONS_TO_COMPRESS_TO = [2, 4, 8, 16, 32, 64, 128, 256, 512]
+DIMENSIONS_TO_COMPRESS_TO = [2, 4, 8, 16, 32, 64, 128, 256] #, 512]
 
 # ============= Helper function to load classes =============
 def load_cifar100_classes():
