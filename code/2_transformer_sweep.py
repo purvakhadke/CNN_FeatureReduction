@@ -1,149 +1,141 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import TensorDataset, DataLoader, random_split
+from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
-import matplotlib.pyplot as plt
 import sys
-
 import os
-import csv
 import time
 
 from config import *
 
+# --- CONFIG CHECKS ---
+if SAMPLE_SIZE is not None:
+    TRAIN_SAMPLE_SIZE = int(SAMPLE_SIZE * 0.9)
+    TEST_SAMPLE_SIZE = int(SAMPLE_SIZE * 0.1)
+else:
+    TRAIN_SAMPLE_SIZE = None
+    TEST_SAMPLE_SIZE = None
 
-# --- Configuration ---
-
-
-TRAIN_SAMPLE_SIZE = None
-TEST_SAMPLE_SIZE = None
-# set in config.py file
-if SAMPLE_SIZE != None:
-    TRAIN_SAMPLE_SIZE = int(SAMPLE_SIZE * 0.9)  # 90%
-    TEST_SAMPLE_SIZE = int(SAMPLE_SIZE * 0.1)   # 10%
-    print("========AYYYYYYYY")
-    print("AYYYYYYYY========")
-    print("========AYYYYYYYY")
-    print("AYYYYYYYY========")
-    print("========AYYYYYYYY")
-    print(f"SAMPLE SIZE IS {SAMPLE_SIZE}")
-    print(f"SAMPLE SIZE IS {SAMPLE_SIZE}")
-    print(f"SAMPLE SIZE IS {SAMPLE_SIZE}")
-    print("========AYYYYYYYY")
-    print("AYYYYYYYY========")
-    print("========AYYYYYYYY")
-    print("AYYYYYYYY========")
-    print("========AYYYYYYYY")
-
-NUM_HEADS = 8  # Number of attention heads
-NUM_LAYERS = 2  # Number of transformer encoder layers
-FFN_DIM_MULTIPLIER = 4  # Feedforward dimension = d_model * multiplier
-
-# --- A. Transformer Model ---
-class TransformerEncoder(nn.Module):
-    def __init__(self, d_model):
-        super(TransformerEncoder, self).__init__()
-        self.d_model = d_model
+# --- A. Patch Transformer Autoencoder ---
+class PatchTransformerAutoencoder(nn.Module):
+    def __init__(self, latent_dim):
+        super(PatchTransformerAutoencoder, self).__init__()
         
-        # Input projection: 2048 -> d_model
-        self.input_proj = nn.Linear(INPUT_DIM, d_model)
+        # 1. ENCODER PARTS
+        # Project patch (64 dim) up to internal transformer dimension (128 dim)
+        self.patch_embedding = nn.Linear(PATCH_SIZE, TRANSFORMER_INTERNAL_DIM)
         
-        # Transformer encoder layers
-        # Adjust num_heads if d_model is not divisible by NUM_HEADS
-        num_heads = min(NUM_HEADS, d_model) if d_model >= NUM_HEADS else d_model
-        # Ensure d_model is divisible by num_heads
-        while d_model % num_heads != 0 and num_heads > 1:
-            num_heads -= 1
-            
+        # Learnable positional encoding (so it knows Patch 1 is different from Patch 32)
+        self.pos_embedding = nn.Parameter(torch.randn(1, PATCH_COUNT, TRANSFORMER_INTERNAL_DIM))
+        
+        # Transformer Encoder Layers
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=num_heads,
-            dim_feedforward=d_model * FFN_DIM_MULTIPLIER,
+            d_model=TRANSFORMER_INTERNAL_DIM,
+            nhead=4,
+            dim_feedforward=TRANSFORMER_INTERNAL_DIM * 4,
             dropout=0.1,
-            activation='relu',
+            activation='gelu', # GELU is standard for Transformers
             batch_first=True
         )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=NUM_LAYERS)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=2)
         
-        # Output projection: d_model -> 2048 (for reconstruction)
-        self.output_proj = nn.Linear(d_model, INPUT_DIM)
+        # 2. BOTTLENECK (COMPRESSION)
+        # Flatten the sequence: (32 * 128) -> latent_dim
+        self.compressor = nn.Linear(PATCH_COUNT * TRANSFORMER_INTERNAL_DIM, latent_dim)
+        
+        # 3. DECODER (RECONSTRUCTION)
+        # latent_dim -> 2048 (Original Input Size)
+        self.decompressor = nn.Sequential(
+            nn.Linear(latent_dim, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, INPUT_DIM)
+        )
         
     def forward(self, x):
-        # x shape: (batch_size, INPUT_DIM)
-        # Add sequence dimension (treat as sequence of length 1)
-        x = x.unsqueeze(1)  # (batch_size, 1, INPUT_DIM)
+        # x shape: (Batch, 2048)
+        batch_size = x.size(0)
         
-        # Project to d_model
-        encoded = self.input_proj(x)  # (batch_size, 1, d_model)
+        # --- Step 1: Create Sequence (Patching) ---
+        # Reshape to (Batch, 32, 64)
+        x_seq = x.view(batch_size, PATCH_COUNT, PATCH_SIZE)
         
-        # Apply transformer encoder
-        transformed = self.transformer_encoder(encoded)  # (batch_size, 1, d_model)
+        # --- Step 2: Embed & Add Position ---
+        # Map 64 -> 128
+        x_emb = self.patch_embedding(x_seq) 
+        # Add position info
+        x_emb = x_emb + self.pos_embedding
         
-        # Project back to INPUT_DIM for reconstruction
-        reconstructed = self.output_proj(transformed)  # (batch_size, 1, INPUT_DIM)
+        # --- Step 3: Transformer Magic ---
+        # Shape: (Batch, 32, 128)
+        trans_out = self.transformer_encoder(x_emb)
         
-        # Remove sequence dimension
-        reconstructed = reconstructed.squeeze(1)  # (batch_size, INPUT_DIM)
-        transformed_features = transformed.squeeze(1)  # (batch_size, d_model)
+        # --- Step 4: Compression ---
+        # Flatten: (Batch, 32*128)
+        flat = trans_out.reshape(batch_size, -1)
+        # Compress to latent_dim
+        latent_vector = self.compressor(flat)
         
-        return reconstructed, transformed_features
+        # --- Step 5: Reconstruction ---
+        reconstructed = self.decompressor(latent_vector)
+        
+        return reconstructed, latent_vector
 
-# --- B. Downstream Classifier Model ---
+
+# --- B. Classifier Model ---
 class Classifier(nn.Module):
     def __init__(self, input_dim):
         super(Classifier, self).__init__()
-        self.fc = nn.Linear(input_dim, len(CLASSES)) 
+        # Deeper classifier for compressed features
+        self.net = nn.Sequential(
+             nn.Linear(input_dim, input_dim * 2),
+             nn.ReLU(),
+             nn.Linear(input_dim * 2, len(CLASSES))
+        )
 
     def forward(self, x):
-        return self.fc(x)
+        return self.net(x)
 
-# --- C. Training and Evaluation Functions ---
-
+# --- C. Training Functions ---
 def train_transformer(model, loader, epochs):
-    """Trains the Transformer using MSE loss for reconstruction."""
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    # AdamW usually works better for Transformers
+    optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4) 
     
     model.train()
+    total_loss = 0.0
     for epoch in range(epochs):
-        running_loss = 0.0
+        epoch_loss = 0.0
         for data in loader:
-            # Transformer training is UN-SUPERVISED (reconstruction task)
             inputs = data[0]
             optimizer.zero_grad()
             reconstruction, _ = model(inputs)
             loss = criterion(reconstruction, inputs)
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
+            epoch_loss += loss.item()
+        total_loss = epoch_loss
             
-        # print(f"  Transformer Epoch {epoch+1}/{epochs}, Loss: {running_loss/len(loader):.6f}")
-    
-    return running_loss / len(loader) # Return final average loss
+    return total_loss / len(loader)
 
 def train_classifier(model, train_loader, test_loader, epochs):
-    """Trains the Classifier using Cross-Entropy loss for classification."""
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
     model.train()
     for epoch in range(epochs):
         for features, labels in train_loader:
-            features, labels = features, labels
             optimizer.zero_grad()
             outputs = model(features)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
-    # --- Test Evaluation ---
     model.eval()
     correct = 0
     total = 0
     with torch.no_grad():
         for features, labels in test_loader:
-            features, labels = features, labels
             outputs = model(features)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -153,119 +145,84 @@ def train_classifier(model, train_loader, test_loader, epochs):
     print(f"  Classifier Test Accuracy: {accuracy:.2f}%")
     return accuracy
 
-# --- D. Main Execution and Sweep Loop ---
-
+# --- D. Main Sweep ---
 def main_sweep():
-    # --- Data Loading (use pre-split train/test data) ---
     try:
         data = np.load(FEATURE_FILE)
-        
         if TRAIN_SAMPLE_SIZE is not None:
-            # Use sampled sizes
             train_features = torch.from_numpy(data['train_features'][:TRAIN_SAMPLE_SIZE]).float()
             train_labels = torch.from_numpy(data['train_labels'][:TRAIN_SAMPLE_SIZE]).long()
-            
             test_features = torch.from_numpy(data['test_features'][:TEST_SAMPLE_SIZE]).float()
             test_labels = torch.from_numpy(data['test_labels'][:TEST_SAMPLE_SIZE]).long()
         else:
-            # Use full dataset
             train_features = torch.from_numpy(data['train_features']).float()
             train_labels = torch.from_numpy(data['train_labels']).long()
-            
             test_features = torch.from_numpy(data['test_features']).float()
             test_labels = torch.from_numpy(data['test_labels']).long()
-            
     except FileNotFoundError:
-        print(f"Error: Feature file '{FEATURE_FILE}' not found.")
+        print("Feature file not found.")
         sys.exit(1)
 
     train_data = TensorDataset(train_features, train_labels)
-    test_data = TensorDataset(test_features, test_labels)
-    
-    print(f"Loaded dataset from '{FEATURE_FILE}'")
-    print(f"Train: {len(train_data)} samples, Test: {len(test_data)} samples")
+    print(f"Loaded dataset: Train {len(train_features)}")
 
-    # --- Sweep Storage ---
     results_mse = []
     results_acc = []
-    
-    results_time = []  
+    results_time = []
     interpretability_metrics = []
 
-    # --- Dimension Sweep Loop ---
-    for d_model in DIMENSIONS_TO_COMPRESS_TO:
-        print(f"\n--- Running Sweep for d_model = {d_model} ---")
+    for latent_dim in DIMENSIONS_TO_COMPRESS_TO:
+        print(f"\n--- Running Transformer Sweep for Latent Dim = {latent_dim} ---")
         
-
-        model_path = f'../models/transformer_{d_model}d.pth'
-        transformer_model = TransformerEncoder(d_model)
-
+        model_path = f'../models/transformer_patch_{latent_dim}d.pth'
+        os.makedirs('../models/', exist_ok=True)
+        
+        model = PatchTransformerAutoencoder(latent_dim)
+        train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
+        
         if os.path.exists(model_path):
-            # Transformer alreadyt trained
             checkpoint = torch.load(model_path)
-            transformer_model.load_state_dict(checkpoint['model_state'])
-            final_mse_loss = checkpoint['final_mse_loss']
-            train_time = checkpoint['train_time']
-            print(f"Loaded pre-trained Transformer for d_model={d_model}")
+            model.load_state_dict(checkpoint['model_state'])
+            final_mse = checkpoint['final_mse_loss']
+            t_time = checkpoint['train_time']
+            print(f"  Loaded pre-trained model.")
         else:
-            # 1. Train Transformer
-            # Train as usual
-            transformer_train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-            start_time = time.time()
-            final_mse_loss = train_transformer(transformer_model, transformer_train_loader, EPOCHS)
-            train_time = time.time() - start_time
-            # torch.save(transformer_model.state_dict(), model_path)
+            start_t = time.time()
+            final_mse = train_transformer(model, train_loader, EPOCHS)
+            t_time = time.time() - start_t
             torch.save({
-                'model_state': transformer_model.state_dict(),
-                'final_mse_loss': final_mse_loss,
-                'train_time': train_time
-            }, f'../models/transformer_{d_model}d.pth')
-
+                'model_state': model.state_dict(), 
+                'final_mse_loss': final_mse,
+                'train_time': t_time
+            }, model_path)
+            print(f"  Training done.")
+            
+        results_mse.append(final_mse)
+        results_time.append(t_time)
         
-        results_time.append(train_time)
-        results_mse.append(final_mse_loss)
-        
-        # 2. Extract Transformed Features
-        transformer_model.eval()
+        model.eval()
         with torch.no_grad():
-            # Extract *all* features from train and test sets
-            _, train_transformed_features = transformer_model(train_features)
-            _, test_transformed_features = transformer_model(test_features)
-
-        # 3. Setup Classifier DataLoaders
-        cls_train_dataset = TensorDataset(train_transformed_features, train_labels)
-        cls_test_dataset = TensorDataset(test_transformed_features, test_labels)
-        cls_train_loader = DataLoader(cls_train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-        cls_test_loader = DataLoader(cls_test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+            _, train_latents = model(train_features)
+            _, test_latents = model(test_features)
+            
+        cls_train_ds = TensorDataset(train_latents, train_labels)
+        cls_test_ds = TensorDataset(test_latents, test_labels)
+        cls_train_loader = DataLoader(cls_train_ds, batch_size=BATCH_SIZE, shuffle=True)
+        cls_test_loader = DataLoader(cls_test_ds, batch_size=BATCH_SIZE, shuffle=False)
         
-        # 4. Train Classifier
-        cls_model = Classifier(d_model)
-        test_accuracy = train_classifier(cls_model, cls_train_loader, cls_test_loader, EPOCHS_classifier)
-        results_acc.append(test_accuracy)
+        cls_model = Classifier(latent_dim)
+        acc = train_classifier(cls_model, cls_train_loader, cls_test_loader, EPOCHS_classifier)
+        results_acc.append(acc)
 
-        # 5. RUN INTERPRETABILITY FOR THIS DIMENSION
         metrics = run_interpretability_analysis(
-            transformer_model, train_features, test_features, test_labels,
-            "Transformer", d_model
+            model, train_features, test_features, test_labels,
+            "Transformer", latent_dim
         )
         interpretability_metrics.append(metrics)
-    
-    
+
     plot_interpretability_trends(DIMENSIONS_TO_COMPRESS_TO, interpretability_metrics, 'transformer')
-
-    # 6. Plot Results
     save_results_csv('../results/transformer_results.csv', DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, results_time)
-    plot_results(
-        dims=DIMENSIONS_TO_COMPRESS_TO,
-        mse_losses=results_mse,
-        accuracies=results_acc,
-        model_name="transformer",
-        x_label="Transformer Dimension ($d_{model}$)"
-    )
-
-
-def main():
-    main_sweep()
+    plot_results(DIMENSIONS_TO_COMPRESS_TO, results_mse, results_acc, "transformer", "Latent Dimension")
 
 if __name__ == "__main__":
-    main()
+    main_sweep()
