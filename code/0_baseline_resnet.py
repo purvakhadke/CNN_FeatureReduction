@@ -1,6 +1,7 @@
 """
 Step A: Baseline - Train ResNet classifier directly on raw CIFAR-10 images
 """
+import csv
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -8,6 +9,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import resnet50, ResNet50_Weights
 import time
+from config import *
 
 def train_baseline():
     print("\n" + "="*60)
@@ -32,6 +34,9 @@ def train_baseline():
     trainset = torchvision.datasets.CIFAR10(
         root='./data', train=True, download=True, transform=transform_train
     )
+    if TRAIN_SAMPLE_SIZE is not None:
+        trainset = torch.utils.data.Subset(trainset, range(TRAIN_SAMPLE_SIZE))
+    
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=64, shuffle=True, num_workers=2
     )
@@ -39,10 +44,16 @@ def train_baseline():
     testset = torchvision.datasets.CIFAR10(
         root='./data', train=False, download=True, transform=transform_test
     )
+    if TEST_SAMPLE_SIZE is not None:
+        testset = torch.utils.data.Subset(testset, range(TEST_SAMPLE_SIZE))
+
+    
     testloader = torch.utils.data.DataLoader(
         testset, batch_size=64, shuffle=False, num_workers=2
     )
-    
+
+
+
     # Load pretrained ResNet50 and modify final layer for CIFAR-10
     print("Loading pretrained ResNet50...")
     model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
@@ -59,8 +70,7 @@ def train_baseline():
     print("\nTraining ResNet50 classifier...")
     start_time = time.time()
     
-    num_epochs = 10
-    for epoch in range(num_epochs):
+    for epoch in range(RESNET_EPOCH):
         model.train()
         running_loss = 0.0
         correct = 0
@@ -81,7 +91,7 @@ def train_baseline():
             correct += (predicted == labels).sum().item()
             
             if i % 100 == 0:
-                print(f"  Epoch [{epoch+1}/{num_epochs}], Batch [{i}/{len(trainloader)}], "
+                print(f"  Epoch [{epoch+1}/{RESNET_EPOCH}], Batch [{i}/{len(trainloader)}], "
                       f"Loss: {loss.item():.4f}")
         
         epoch_loss = running_loss / len(trainloader)
@@ -111,12 +121,19 @@ def train_baseline():
     print(f"{'='*60}\n")
     
     # Save results
-    with open('../results/baseline_results.txt', 'w') as f:
-        f.write(f"ResNet50 Baseline Results\n")
-        f.write(f"="*40 + "\n")
-        f.write(f"Test Accuracy: {accuracy:.2f}%\n")
-        f.write(f"Training Time: {train_time:.2f} seconds\n")
+    # with open('../results/baseline_results.txt', 'w') as f:
+    #     f.write(f"ResNet50 Baseline Results\n")
+    #     f.write(f"="*40 + "\n")
+    #     f.write(f"Test Accuracy: {accuracy:.2f}%\n")
+    #     f.write(f"Training Time: {train_time:.2f} seconds\n")
     
+    with open('../results/baseline_results.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Method', 'Input_Dim', 'Output_Dim', 'Compression_Ratio', 
+                        'Accuracy_%', 'Training_Time_sec'])
+        writer.writerow(['ResNet_Baseline', 3072, NUM_CLASSES, '1:1', 
+                        accuracy, train_time])
+
     return accuracy, train_time
 
 def main():

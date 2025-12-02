@@ -10,18 +10,11 @@ import sys
 import os
 import time
 import csv
+from config import *
 
-# Configuration
-PCA_INPUT_DIM = 200
-DIMENSIONS_TO_COMPRESS_TO = [10, 25, 50, 100]
-BATCH_SIZE = 128
-LEARNING_RATE = 0.001
-EPOCHS = 30
-EPOCHS_CLASSIFIER = 10
-CLASSES = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 # Transformer configuration for 200-D input
-PATCH_COUNT = 10  # Split 200-D into 10 patches
+PATCH_COUNT = 10  # Split 200-D into 10 patches (200 is the PCA_compinents)
 PATCH_SIZE = 20   # Each patch is 20-D
 TRANSFORMER_DIM = 64
 
@@ -84,7 +77,7 @@ class Classifier(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_dim, input_dim * 2),
             nn.ReLU(),
-            nn.Linear(input_dim * 2, len(CLASSES))
+            nn.Linear(input_dim * 2, len(CLASS_NAMES))
         )
 
     def forward(self, x):
@@ -139,19 +132,19 @@ def train_classifier(model, train_loader, test_loader, epochs):
 
 def main_sweep():
     print("\n" + "="*60)
-    print(f"STEP D: Transformer Sweep (PCA-{PCA_INPUT_DIM} → Compressed)")
+    print(f"STEP D: Transformer Sweep (PCA-{PCA_COMPONENTS} → Compressed)")
     print("="*60 + "\n")
     
     # Load PCA features
     try:
-        data = np.load(f'../data/cifar10-pca{PCA_INPUT_DIM}.npz')
+        data = np.load(f'../data/cifar10-pca{PCA_COMPONENTS}.npz')
         train_features = torch.from_numpy(data['train_features']).float()
         train_labels = torch.from_numpy(data['train_labels']).long()
         test_features = torch.from_numpy(data['test_features']).float()
         test_labels = torch.from_numpy(data['test_labels']).long()
-        print(f"Loaded PCA-{PCA_INPUT_DIM} features: {train_features.shape}")
+        print(f"Loaded PCA-{PCA_COMPONENTS} features: {train_features.shape}")
     except FileNotFoundError:
-        print(f"Error: cifar10-pca{PCA_INPUT_DIM}.npz not found. Run 2_pca_only.py first.")
+        print(f"Error: cifar10-pca{PCA_COMPONENTS}.npz not found. Run 2_pca_only.py first.")
         sys.exit(1)
 
     train_data = TensorDataset(train_features, train_labels)
@@ -161,12 +154,12 @@ def main_sweep():
     results_time = []
 
     for latent_dim in DIMENSIONS_TO_COMPRESS_TO:
-        print(f"\n--- Transformer: {PCA_INPUT_DIM}D → {latent_dim}D ---")
+        print(f"\n--- Transformer: {PCA_COMPONENTS}D → {latent_dim}D ---")
         
-        model_path = f'../models/transformer_pca{PCA_INPUT_DIM}_to_{latent_dim}d.pth'
+        model_path = f'../models/transformer_pca{PCA_COMPONENTS}_to_{latent_dim}d.pth'
         os.makedirs('../models/', exist_ok=True)
         
-        model = TransformerAutoencoder(PCA_INPUT_DIM, latent_dim)
+        model = TransformerAutoencoder(PCA_COMPONENTS, latent_dim)
         train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
         
         if os.path.exists(model_path):
@@ -202,7 +195,7 @@ def main_sweep():
         cls_test_loader = DataLoader(cls_test_ds, batch_size=BATCH_SIZE, shuffle=False)
         
         classifier = Classifier(latent_dim)
-        accuracy = train_classifier(classifier, cls_train_loader, cls_test_loader, EPOCHS_CLASSIFIER)
+        accuracy = train_classifier(classifier, cls_train_loader, cls_test_loader, len(CLASS_NAMES))
         results_acc.append(accuracy)
         
         print(f"  Final MSE: {final_mse:.6f}")

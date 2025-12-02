@@ -10,19 +10,14 @@ from sklearn.decomposition import PCA
 import time
 import sys
 import os
+from config import *
 
-# Configuration
-PCA_COMPONENTS = 200
-BATCH_SIZE = 128
-LEARNING_RATE = 0.001
-EPOCHS = 10
-CLASSES = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
 # Simple Classifier
 class Classifier(nn.Module):
     def __init__(self, input_dim):
         super(Classifier, self).__init__()
-        self.fc = nn.Linear(input_dim, len(CLASSES))
+        self.fc = nn.Linear(input_dim, len(CLASS_NAMES))
 
     def forward(self, x):
         return self.fc(x)
@@ -63,6 +58,9 @@ def train_classifier(model, train_loader, test_loader, epochs):
 def main_pca():
     print("\n" + "="*60)
     print(f"STEP B: Applying PCA (3072-D → {PCA_COMPONENTS}-D)")
+    if SAMPLE_SIZE:
+        print(f"!!!!!!!!!!TESTING MODE: Using sample size = {SAMPLE_SIZE}")
+
     print("="*60 + "\n")
     
     # Load raw data
@@ -140,6 +138,18 @@ def main_pca():
         f.write(f"Classification Accuracy: {accuracy:.2f}%\n")
         f.write(f"PCA Time: {pca_time:.2f} seconds\n")
     
+    # Also save to CSV
+    import csv
+    pca_csv = '../results/pca_results.csv'
+    with open(pca_csv, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Method', 'Input_Dim', 'Output_Dim', 'Compression_Ratio',
+                        'Variance_Explained', 'MSE_Loss', 'Accuracy_%', 'Training_Time_sec'])
+        writer.writerow(['PCA', 3072, PCA_COMPONENTS, 
+                        f'{3072/PCA_COMPONENTS:.1f}:1',
+                        variance_explained, mse_loss, accuracy, pca_time])
+    
+
     return accuracy, mse_loss, pca_time
 
 def main():

@@ -1,0 +1,2 @@
+Method,Input_Dim,Output_Dim,Compression_Ratio,Accuracy_%,Training_Time_sec
+ResNet_Baseline,3072,10,1:1,51.0,423.3640079498291

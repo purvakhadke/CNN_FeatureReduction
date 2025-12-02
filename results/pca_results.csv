@@ -1,0 +1,2 @@
+Method,Input_Dim,Output_Dim,Compression_Ratio,Variance_Explained,MSE_Loss,Accuracy_%,Training_Time_sec
+PCA,3072,200,15.4:1,0.96181476,0.0023593027,17.0,0.2738988399505615

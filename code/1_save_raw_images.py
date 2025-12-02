@@ -4,6 +4,7 @@ Save raw CIFAR-10 images as flattened 3072-D vectors
 import torchvision
 import numpy as np
 import os
+from config import *
 
 def save_raw_images():
     print("\n" + "="*60)
@@ -37,6 +38,14 @@ def save_raw_images():
     test_images = testset.data.reshape(len(testset.data), -1).astype(np.float32) / 255.0
     test_labels = np.array(testset.targets)
     
+    if TRAIN_SAMPLE_SIZE is not None:
+        train_images = train_images[:TRAIN_SAMPLE_SIZE]
+        train_labels = train_labels[:TRAIN_SAMPLE_SIZE]
+    if TEST_SAMPLE_SIZE is not None:
+        test_images = test_images[:TEST_SAMPLE_SIZE]
+        test_labels = test_labels[:TEST_SAMPLE_SIZE]
+
+
     print(f"Train images shape: {train_images.shape}")
     print(f"Test images shape: {test_images.shape}")
     

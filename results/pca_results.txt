@@ -1,0 +1,7 @@
+PCA Results
+========================================
+Components: 200
+Variance Explained: 0.9618
+Reconstruction MSE: 0.002359
+Classification Accuracy: 17.00%
+PCA Time: 0.27 seconds

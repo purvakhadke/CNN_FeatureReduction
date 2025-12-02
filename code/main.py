@@ -11,13 +11,16 @@ scripts = [
     ('2_pca_only.py', 'Step B: PCA Reduction (3072→200)'),
     ('3_autoencoder_sweep.py', 'Step C: PCA→Autoencoder'),
     ('4_transformer_sweep.py', 'Step D: PCA→Transformer'),
-    ('5_compare_results.py', 'Generate Comparison Plots')
+    ('5_compare_results.py', 'Generate Comparison Plots'),
+    ('6_interpretability_analysis.py', 'RQ3: Interpretability Analysis')
+
 ]
 
 for i, (script, desc) in enumerate(scripts, 1):
     print(f"\n[{i}/{len(scripts)}] {desc}...")
     print("-"*60)
     with open(script) as f:
+        print(f"Processesing {script}")
         exec(f.read())
 
 print("\n" + "="*60)
