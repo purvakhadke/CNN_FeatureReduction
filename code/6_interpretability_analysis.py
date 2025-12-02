@@ -81,7 +81,7 @@ def main():
     
     # 1. PCA-200
     print("Analyzing PCA-200...")
-    data = np.load('../data/cifar10-pca200.npz')
+    data = np.load('../data/cifar100-pca200.npz')
     test_features = data['test_features']
     test_labels = data['test_labels']
     

@@ -11,9 +11,9 @@ def save_raw_images():
     print("Saving Raw CIFAR-10 Images (3072-D)")
     print("="*60 + "\n")
     
-    if os.path.exists('cifar10-raw.npz'):
+    if os.path.exists('cifar100-raw.npz'):
         print("Raw image file already exists, loading to verify...")
-        data = np.load('cifar10-raw.npz')
+        data = np.load('cifar100-raw.npz')
         print(f"\nFile contents:")
         print(f"  Train features: {data['train_features'].shape}")
         print(f"  Train labels: {data['train_labels'].shape}")
@@ -23,10 +23,10 @@ def save_raw_images():
     
     # Load CIFAR-10 (raw numpy arrays)
     print("Downloading CIFAR-10...")
-    trainset = torchvision.datasets.CIFAR10(
+    trainset = torchvision.datasets.CIFAR100(
         root='./data', train=True, download=True
     )
-    testset = torchvision.datasets.CIFAR10(
+    testset = torchvision.datasets.CIFAR100(
         root='./data', train=False, download=True
     )
     
@@ -50,7 +50,7 @@ def save_raw_images():
     print(f"Test images shape: {test_images.shape}")
     
     # Save
-    print("\nSaving to cifar10-raw.npz...")
+    print("\nSaving to cifar100-raw.npz...")
     np.savez_compressed(
         'cifar10-raw',
         train_features=train_images,

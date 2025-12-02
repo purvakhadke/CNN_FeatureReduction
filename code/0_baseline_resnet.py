@@ -31,7 +31,7 @@ def train_baseline():
     ])
     
     # Load CIFAR-10
-    trainset = torchvision.datasets.CIFAR10(
+    trainset = torchvision.datasets.CIFAR100(
         root='./data', train=True, download=True, transform=transform_train
     )
     if TRAIN_SAMPLE_SIZE is not None:
@@ -41,7 +41,7 @@ def train_baseline():
         trainset, batch_size=64, shuffle=True, num_workers=2
     )
     
-    testset = torchvision.datasets.CIFAR10(
+    testset = torchvision.datasets.CIFAR100(
         root='./data', train=False, download=True, transform=transform_test
     )
     if TEST_SAMPLE_SIZE is not None:
@@ -54,10 +54,10 @@ def train_baseline():
 
 
 
-    # Load pretrained ResNet50 and modify final layer for CIFAR-10
+    # Load pretrained ResNet50 and modify final layer for CIFAR-100
     print("Loading pretrained ResNet50...")
     model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-    model.fc = nn.Linear(2048, 10)  # CIFAR-10 has 10 classes
+    model.fc = nn.Linear(2048, 100)  # CIFAR-100 has 100 classes
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)

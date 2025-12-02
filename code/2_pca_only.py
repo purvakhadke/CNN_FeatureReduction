@@ -17,7 +17,7 @@ from config import *
 class Classifier(nn.Module):
     def __init__(self, input_dim):
         super(Classifier, self).__init__()
-        self.fc = nn.Linear(input_dim, len(CLASS_NAMES))
+        self.fc = nn.Linear(input_dim, NUM_CLASSES)
 
     def forward(self, x):
         return self.fc(x)
@@ -65,14 +65,14 @@ def main_pca():
     
     # Load raw data
     try:
-        data = np.load('cifar10-raw.npz')
+        data = np.load('cifar100-raw.npz')
         train_features = data['train_features']
         train_labels = data['train_labels']
         test_features = data['test_features']
         test_labels = data['test_labels']
         print(f"Loaded raw data: {train_features.shape}")
     except FileNotFoundError:
-        print("Error: cifar10-raw.npz not found. Run 1_save_raw_images.py first.")
+        print("Error: cifar100-raw.npz not found. Run 1_save_raw_images.py first.")
         sys.exit(1)
     
     # Apply PCA
@@ -99,9 +99,9 @@ def main_pca():
     
     # Save PCA features for autoencoder/transformer
     os.makedirs('../data', exist_ok=True)
-    print(f"\nSaving PCA features to '../data/cifar10-pca{PCA_COMPONENTS}.npz'...")
+    print(f"\nSaving PCA features to '../data/cifar100-pca{PCA_COMPONENTS}.npz'...")
     np.savez_compressed(
-        f'../data/cifar10-pca{PCA_COMPONENTS}',
+        f'../data/cifar100-pca{PCA_COMPONENTS}',
         train_features=train_pca,
         train_labels=train_labels,
         test_features=test_pca,

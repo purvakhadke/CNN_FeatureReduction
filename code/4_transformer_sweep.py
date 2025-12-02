@@ -77,7 +77,7 @@ class Classifier(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_dim, input_dim * 2),
             nn.ReLU(),
-            nn.Linear(input_dim * 2, len(CLASS_NAMES))
+            nn.Linear(input_dim * 2, NUM_CLASSES)
         )
 
     def forward(self, x):
@@ -137,14 +137,14 @@ def main_sweep():
     
     # Load PCA features
     try:
-        data = np.load(f'../data/cifar10-pca{PCA_COMPONENTS}.npz')
+        data = np.load(f'../data/cifar100-pca{PCA_COMPONENTS}.npz')
         train_features = torch.from_numpy(data['train_features']).float()
         train_labels = torch.from_numpy(data['train_labels']).long()
         test_features = torch.from_numpy(data['test_features']).float()
         test_labels = torch.from_numpy(data['test_labels']).long()
         print(f"Loaded PCA-{PCA_COMPONENTS} features: {train_features.shape}")
     except FileNotFoundError:
-        print(f"Error: cifar10-pca{PCA_COMPONENTS}.npz not found. Run 2_pca_only.py first.")
+        print(f"Error: cifar100-pca{PCA_COMPONENTS}.npz not found. Run 2_pca_only.py first.")
         sys.exit(1)
 
     train_data = TensorDataset(train_features, train_labels)
@@ -195,7 +195,7 @@ def main_sweep():
         cls_test_loader = DataLoader(cls_test_ds, batch_size=BATCH_SIZE, shuffle=False)
         
         classifier = Classifier(latent_dim)
-        accuracy = train_classifier(classifier, cls_train_loader, cls_test_loader, len(CLASS_NAMES))
+        accuracy = train_classifier(classifier, cls_train_loader, cls_test_loader, NUM_CLASSES)
         results_acc.append(accuracy)
         
         print(f"  Final MSE: {final_mse:.6f}")
