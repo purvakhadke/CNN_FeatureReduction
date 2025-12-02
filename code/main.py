@@ -1,22 +1,25 @@
-print("MAKE SURE YOU'RE IN THE code DIRECTORY")
-print("\n" + "="*60)
-print("Running CNN Feature Dimensionality Reduction Pipeline")
+"""
+Master pipeline to run all experiments
+"""
+print("="*60)
+print("CNN Feature Dimensionality Reduction Pipeline")
 print("="*60 + "\n")
 
 scripts = [
-    ('0_feature_extractor.py', 'Extracting ResNet50 features'),
-    ('00_pca_sweep.py', 'PCA baseline'),
-    ('1_autoencoder_sweep.py', 'Autoencoder sweep'),
-    ('2_transformer_sweep.py', 'Transformer sweep'),
-    ('3_compare_results.py', 'Comparison plots')
+    ('0_baseline_resnet.py', 'Step A: ResNet Baseline'),
+    ('1_save_raw_images.py', 'Save Raw Images (3072-D)'),
+    ('2_pca_only.py', 'Step B: PCA Reduction (3072→200)'),
+    ('3_autoencoder_sweep.py', 'Step C: PCA→Autoencoder'),
+    ('4_transformer_sweep.py', 'Step D: PCA→Transformer'),
+    ('5_compare_results.py', 'Generate Comparison Plots')
 ]
 
 for i, (script, desc) in enumerate(scripts, 1):
-    print(f"[{i}/5] {desc}...")
+    print(f"\n[{i}/{len(scripts)}] {desc}...")
+    print("-"*60)
     with open(script) as f:
         exec(f.read())
-    print(f"✅ {script} completed\n")
 
-print("="*60)
-print("✅ Pipeline complete! Check results/ folder.")
+print("\n" + "="*60)
+print("✅ Pipeline Complete! Check ../results/ folder.")
 print("="*60 + "\n")
