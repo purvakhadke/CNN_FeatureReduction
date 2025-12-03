@@ -1,57 +1,48 @@
 ======================================================================
-EXPERIMENT INSIGHTS: PCA Impact on CIFAR-100 Classification
+EXPERIMENT INSIGHTS: Dimensionality Reduction Comparison
 ======================================================================
 
 RESEARCH QUESTION:
 ----------------------------------------------------------------------
-How does PCA dimensionality reduction (3072-D → 512-D) affect the
-classification performance of ResNet, Transformer, and Autoencoder
-architectures on CIFAR-100?
+How do different dimensionality reduction methods (PCA, UMAP, Autoencoder)
+affect the classification performance of neural networks on CIFAR-100?
 
-KEY FINDINGS:
+METHODS COMPARED:
 ----------------------------------------------------------------------
+• Raw: Original flattened images (3072-D)
+• PCA: Linear reduction (512-D)
+• UMAP: Nonlinear manifold learning (512-D)
+• Autoencoder: Learned nonlinear reduction (512-D)
 
-1. ResNet:
-   Raw accuracy:     65.33%
-   PCA accuracy:     28.22%
-   Accuracy change:  -37.11%
-   Training speedup: 51.67x
-   → Significant accuracy loss; PCA may remove important features
-
-2. Transformer:
-   Raw accuracy:     34.76%
-   PCA accuracy:     31.76%
-   Accuracy change:  -3.00%
-   Training speedup: 2.34x
-   → Moderate accuracy trade-off for 2.3x speedup
-
-3. Autoencoder:
-   Raw accuracy:     27.89%
-   PCA accuracy:     20.02%
-   Accuracy change:  -7.87%
-   Training speedup: 8.45x
-   → Significant accuracy loss; PCA may remove important features
-
-======================================================================
-CONCLUSIONS:
+CLASSIFIERS TESTED:
 ----------------------------------------------------------------------
-• Best model on raw data: ResNet (65.33%)
-• Best model with PCA:    Transformer (31.76%)
-• Average accuracy change with PCA: -15.99%
-• Average training speedup with PCA: 20.82x
+• ResNet-50 (pretrained on ImageNet - transfer learning)
+• Transformer (trained from scratch)
+• Autoencoder (trained from scratch)
 
-t-SNE INTERPRETATION:
+RESULTS SUMMARY:
 ----------------------------------------------------------------------
-The t-SNE visualization shows how well-separated the class clusters are
-in each feature space. More distinct, tight clusters indicate better
-separability and potentially easier classification.
+Best overall: ResNet + Raw (65.82%)
+
+Raw:
+  Avg Accuracy: 42.98%
+  Avg Time: 5253.9s
+PCA:
+  Avg Accuracy: 26.57%
+  Avg Time: 1202.8s
+UMAP:
+  Avg Accuracy: 6.42%
+  Avg Time: 1323.4s
+AE:
+  Avg Accuracy: 25.69%
+  Avg Time: 1396.9s
 
 ======================================================================
 GENERATED FILES:
 ----------------------------------------------------------------------
-• comparison_plots.png - Accuracy, time, and PCA impact charts
+• comparison_plots.png - Accuracy & time comparisons
 • summary_table.png    - Summary table as image
-• tsne_comparison.png  - t-SNE visualization (Raw vs PCA)
+• tsne_comparison.png  - t-SNE visualization (4 methods)
 • all_results.csv      - Combined numerical results
 • insights.txt         - This report
 ======================================================================
