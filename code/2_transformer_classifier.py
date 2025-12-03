@@ -1,8 +1,6 @@
 """
 Transformer Classifier for CIFAR-100
-Can work on:
-1. Raw images (3072-D as sequence of patches)
-2. PCA features (512-D as sequence)
+Works on: Raw, PCA, UMAP, and Autoencoder-reduced features
 """
 import torch
 import torch.nn as nn
@@ -51,11 +49,11 @@ class TransformerClassifier(nn.Module):
         x = x.view(batch_size, self.num_patches, self.patch_size)
         
         # Embed patches
-        x = self.patch_embedding(x)  # (batch, num_patches, transformer_dim)
+        x = self.patch_embedding(x)
         
         # Add CLS token
         cls_tokens = self.cls_token.expand(batch_size, -1, -1)
-        x = torch.cat([cls_tokens, x], dim=1)  # (batch, num_patches+1, transformer_dim)
+        x = torch.cat([cls_tokens, x], dim=1)
         
         # Add position embedding
         x = x + self.pos_embedding
@@ -70,13 +68,24 @@ class TransformerClassifier(nn.Module):
         return output
 
 
-def train_transformer(model, train_loader, test_loader, device, epochs):
+def get_patch_config(input_dim):
+    """Get patch configuration based on input dimension"""
+    if input_dim == FLATTENED_DIM:  # 3072 (raw)
+        num_patches = 64
+    else:  # Reduced dimensions (512)
+        num_patches = 32
+    
+    patch_size = input_dim // num_patches
+    return num_patches, patch_size
+
+
+def train_transformer(model, train_loader, test_loader, device, epochs, input_type):
     """Train transformer classifier"""
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs)
     
-    print("\nTraining Transformer...")
+    print(f"\nTraining Transformer on {input_type}...")
     start_time = time.time()
     
     for epoch in range(epochs):
@@ -98,15 +107,11 @@ def train_transformer(model, train_loader, test_loader, device, epochs):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            
-            if i % 50 == 0:
-                print(f"  Epoch [{epoch+1}/{epochs}], Batch [{i}/{len(train_loader)}], "
-                      f"Loss: {loss.item():.4f}")
         
         scheduler.step()
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100 * correct / total
-        print(f"Epoch {epoch+1} - Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%")
+        print(f"  Epoch {epoch+1}/{epochs} - Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%")
     
     train_time = time.time() - start_time
     
@@ -129,68 +134,51 @@ def train_transformer(model, train_loader, test_loader, device, epochs):
 
 def main():
     os.makedirs('../results', exist_ok=True)
+    os.makedirs('../models', exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
     results = []
     
-    # Test 1: Transformer on raw images
-    print("\n" + "="*60)
-    print("TEST 1: Transformer on Raw Images (3072-D)")
-    print("="*60)
-    
-    data = np.load('../data/cifar100_raw.npz')
-    train_features = torch.from_numpy(data['train_features']).float()
-    train_labels = torch.from_numpy(data['train_labels']).long()
-    test_features = torch.from_numpy(data['test_features']).float()
-    test_labels = torch.from_numpy(data['test_labels']).long()
-    
-    # Patch configuration for 3072-D: 64 patches of 48-D each
-    num_patches = 64
-    patch_size = FLATTENED_DIM // num_patches
-    
-    model = TransformerClassifier(FLATTENED_DIM, patch_size, num_patches).to(device)
-    
-    train_dataset = TensorDataset(train_features, train_labels)
-    test_dataset = TensorDataset(test_features, test_labels)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    
-    acc, time_taken = train_transformer(model, train_loader, test_loader, device, EPOCHS)
-    os.makedirs('../models', exist_ok=True)
-    torch.save(model.state_dict(), '../models/transformer_raw.pth')
-
-    print(f"\n✅ Transformer (Raw) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
-    results.append(['Transformer', 'Raw', FLATTENED_DIM, acc, time_taken])
-    
-    # Test 2: Transformer on PCA features
-    print("\n" + "="*60)
-    print(f"TEST 2: Transformer on PCA Features ({PCA_COMPONENTS}-D)")
-    print("="*60)
-    
-    data = np.load(f'../data/cifar100_pca{PCA_COMPONENTS}.npz')
-    train_features = torch.from_numpy(data['train_features']).float()
-    train_labels = torch.from_numpy(data['train_labels']).long()
-    test_features = torch.from_numpy(data['test_features']).float()
-    test_labels = torch.from_numpy(data['test_labels']).long()
-    
-    # Patch configuration for PCA: 32 patches
-    num_patches = 32
-    patch_size = PCA_COMPONENTS // num_patches
-    
-    model = TransformerClassifier(PCA_COMPONENTS, patch_size, num_patches).to(device)
-    
-    train_dataset = TensorDataset(train_features, train_labels)
-    test_dataset = TensorDataset(test_features, test_labels)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    
-    acc, time_taken = train_transformer(model, train_loader, test_loader, device, EPOCHS)
-    os.makedirs('../models', exist_ok=True)
-    torch.save(model.state_dict(), '../models/transformer_pca.pth')
-    print(f"\n✅ Transformer (PCA) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
-
-    results.append(['Transformer', f'PCA-{PCA_COMPONENTS}', PCA_COMPONENTS, acc, time_taken])
+    # Test all input types
+    for input_type, data_path in INPUT_FILES.items():
+        print("\n" + "="*60)
+        print(f"Transformer on {input_type}")
+        print("="*60)
+        
+        # Load data
+        data = np.load(data_path)
+        train_features = torch.from_numpy(data['train_features']).float()
+        train_labels = torch.from_numpy(data['train_labels']).long()
+        test_features = torch.from_numpy(data['test_features']).float()
+        test_labels = torch.from_numpy(data['test_labels']).long()
+        
+        # Determine input dimension
+        is_raw = (input_type == 'Raw')
+        input_dim = FLATTENED_DIM if is_raw else REDUCED_DIM
+        
+        # Get patch configuration
+        num_patches, patch_size = get_patch_config(input_dim)
+        print(f"  Input dim: {input_dim}, Patches: {num_patches}, Patch size: {patch_size}")
+        
+        # Build model
+        model = TransformerClassifier(input_dim, patch_size, num_patches).to(device)
+        
+        # Create dataloaders
+        train_dataset = TensorDataset(train_features, train_labels)
+        test_dataset = TensorDataset(test_features, test_labels)
+        train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+        
+        # Train
+        acc, time_taken = train_transformer(model, train_loader, test_loader, device, EPOCHS, input_type)
+        
+        # Save model
+        model_name = f"transformer_{input_type.lower().replace('-', '_')}.pth"
+        torch.save(model.state_dict(), f'../models/{model_name}')
+        
+        print(f"\n✅ Transformer ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
+        results.append(['Transformer', input_type, input_dim, acc, time_taken])
     
     # Save results
     with open('../results/transformer_results.csv', 'w', newline='') as f:

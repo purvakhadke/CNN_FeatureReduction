@@ -1,8 +1,6 @@
 """
 Autoencoder Classifier for CIFAR-100
-Can work on:
-1. Raw images (3072-D)
-2. PCA features (512-D)
+Works on: Raw, PCA, UMAP, and Autoencoder-reduced features
 
 Note: This is an autoencoder used as a CLASSIFIER, not for dimensionality reduction.
 It learns features through reconstruction, then classifies.
@@ -63,24 +61,31 @@ class AutoencoderClassifier(nn.Module):
         classification = self.classifier(encoded)
         
         if return_reconstruction:
-            # Decode (for reconstruction loss during training)
             reconstructed = self.decoder(encoded)
             return classification, reconstructed
         else:
             return classification
 
 
-def train_autoencoder_classifier(model, train_loader, test_loader, device, epochs):
+def get_hidden_dims(input_dim):
+    """Get hidden dimensions based on input size"""
+    if input_dim == FLATTENED_DIM:  # 3072 (raw)
+        return [1024, 512, 256]
+    else:  # Reduced dimensions (512)
+        return [256, 128, 64]
+
+
+def train_autoencoder_classifier(model, train_loader, test_loader, device, epochs, input_type):
     """Train autoencoder classifier with joint classification and reconstruction loss"""
     classification_criterion = nn.CrossEntropyLoss()
     reconstruction_criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
-    # Loss weights: balance classification and reconstruction
+    # Loss weights
     alpha = 0.7  # Classification weight
     beta = 0.3   # Reconstruction weight
     
-    print("\nTraining Autoencoder Classifier...")
+    print(f"\nTraining Autoencoder Classifier on {input_type}...")
     start_time = time.time()
     
     for epoch in range(epochs):
@@ -111,15 +116,11 @@ def train_autoencoder_classifier(model, train_loader, test_loader, device, epoch
             _, predicted = torch.max(class_outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-            
-            if i % 50 == 0:
-                print(f"  Epoch [{epoch+1}/{epochs}], Batch [{i}/{len(train_loader)}], "
-                      f"Class Loss: {class_loss.item():.4f}, Recon Loss: {recon_loss.item():.6f}")
         
         epoch_class_loss = running_class_loss / len(train_loader)
         epoch_recon_loss = running_recon_loss / len(train_loader)
         epoch_acc = 100 * correct / total
-        print(f"Epoch {epoch+1} - Class Loss: {epoch_class_loss:.4f}, "
+        print(f"  Epoch {epoch+1}/{epochs} - Class Loss: {epoch_class_loss:.4f}, "
               f"Recon Loss: {epoch_recon_loss:.6f}, Train Acc: {epoch_acc:.2f}%")
     
     train_time = time.time() - start_time
@@ -143,62 +144,52 @@ def train_autoencoder_classifier(model, train_loader, test_loader, device, epoch
 
 def main():
     os.makedirs('../results', exist_ok=True)
+    os.makedirs('../models', exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
     results = []
     
-    # Test 1: Autoencoder on raw images
-    print("\n" + "="*60)
-    print("TEST 1: Autoencoder on Raw Images (3072-D)")
-    print("="*60)
-    
-    data = np.load('../data/cifar100_raw.npz')
-    train_features = torch.from_numpy(data['train_features']).float()
-    train_labels = torch.from_numpy(data['train_labels']).long()
-    test_features = torch.from_numpy(data['test_features']).float()
-    test_labels = torch.from_numpy(data['test_labels']).long()
-    
-    # Hidden dims for raw images
-    hidden_dims = [1024, 512, 256]
-    model = AutoencoderClassifier(FLATTENED_DIM, hidden_dims).to(device)
-    
-    train_dataset = TensorDataset(train_features, train_labels)
-    test_dataset = TensorDataset(test_features, test_labels)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    
-    acc, time_taken = train_autoencoder_classifier(model, train_loader, test_loader, device, EPOCHS)
-    os.makedirs('../models', exist_ok=True)
-    torch.save(model.state_dict(), '../models/autoencoder_raw.pth')
-    print(f"\n✅ Autoencoder (Raw) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
-    results.append(['Autoencoder', 'Raw', FLATTENED_DIM, acc, time_taken])
-    
-    # Test 2: Autoencoder on PCA features
-    print("\n" + "="*60)
-    print(f"TEST 2: Autoencoder on PCA Features ({PCA_COMPONENTS}-D)")
-    print("="*60)
-    
-    data = np.load(f'../data/cifar100_pca{PCA_COMPONENTS}.npz')
-    train_features = torch.from_numpy(data['train_features']).float()
-    train_labels = torch.from_numpy(data['train_labels']).long()
-    test_features = torch.from_numpy(data['test_features']).float()
-    test_labels = torch.from_numpy(data['test_labels']).long()
-    
-    # Hidden dims for PCA features
-    hidden_dims = [256, 128, 64]
-    model = AutoencoderClassifier(PCA_COMPONENTS, hidden_dims).to(device)
-    
-    train_dataset = TensorDataset(train_features, train_labels)
-    test_dataset = TensorDataset(test_features, test_labels)
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-    
-    acc, time_taken = train_autoencoder_classifier(model, train_loader, test_loader, device, EPOCHS)
-    os.makedirs('../models', exist_ok=True)
-    torch.save(model.state_dict(), '../models/autoencoder_pca.pth')
-    print(f"\n✅ Autoencoder (PCA) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
-    results.append(['Autoencoder', f'PCA-{PCA_COMPONENTS}', PCA_COMPONENTS, acc, time_taken])
+    # Test all input types
+    for input_type, data_path in INPUT_FILES.items():
+        print("\n" + "="*60)
+        print(f"Autoencoder Classifier on {input_type}")
+        print("="*60)
+        
+        # Load data
+        data = np.load(data_path)
+        train_features = torch.from_numpy(data['train_features']).float()
+        train_labels = torch.from_numpy(data['train_labels']).long()
+        test_features = torch.from_numpy(data['test_features']).float()
+        test_labels = torch.from_numpy(data['test_labels']).long()
+        
+        # Determine input dimension and hidden dims
+        is_raw = (input_type == 'Raw')
+        input_dim = FLATTENED_DIM if is_raw else REDUCED_DIM
+        hidden_dims = get_hidden_dims(input_dim)
+        
+        print(f"  Input dim: {input_dim}, Hidden dims: {hidden_dims}")
+        
+        # Build model
+        model = AutoencoderClassifier(input_dim, hidden_dims).to(device)
+        
+        # Create dataloaders
+        train_dataset = TensorDataset(train_features, train_labels)
+        test_dataset = TensorDataset(test_features, test_labels)
+        train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+        
+        # Train
+        acc, time_taken = train_autoencoder_classifier(
+            model, train_loader, test_loader, device, EPOCHS, input_type
+        )
+        
+        # Save model
+        model_name = f"autoencoder_{input_type.lower().replace('-', '_')}.pth"
+        torch.save(model.state_dict(), f'../models/{model_name}')
+        
+        print(f"\n✅ Autoencoder ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
+        results.append(['Autoencoder', input_type, input_dim, acc, time_taken])
     
     # Save results
     with open('../results/autoencoder_results.csv', 'w', newline='') as f:
