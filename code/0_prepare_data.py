@@ -158,7 +158,7 @@ def save_data():
         test_features=test_images,
         test_labels=test_labels
     )
-    print("  ✅ Saved to '../data/cifar100_raw.npz'")
+    print("  Saved to '../data/cifar100_raw.npz'")
     
     # ============================================================
     # PCA Reduction
@@ -183,8 +183,8 @@ def save_data():
         test_labels=test_labels,
         variance_explained=pca_variance
     )
-    print(f"  ✅ Saved to '../data/cifar100_pca{REDUCED_DIM}.npz'")
-    print(f"  ✅ PCA model saved to '../models/reducers/pca_model.joblib'")
+    print(f"  Saved to '../data/cifar100_pca{REDUCED_DIM}.npz'")
+    print(f"  PCA model saved to '../models/reducers/pca_model.joblib'")
     
     # ============================================================
     # UMAP Reduction
@@ -215,8 +215,8 @@ def save_data():
         test_features=test_umap,
         test_labels=test_labels
     )
-    print(f"  ✅ Saved to '../data/cifar100_umap{REDUCED_DIM}.npz'")
-    print(f"  ✅ UMAP model saved to '../models/reducers/umap_model.joblib'")
+    print(f"  Saved to '../data/cifar100_umap{REDUCED_DIM}.npz'")
+    print(f"  UMAP model saved to '../models/reducers/umap_model.joblib'")
     
     # ============================================================
     # Autoencoder Reduction
@@ -244,8 +244,8 @@ def save_data():
         test_features=test_ae,
         test_labels=test_labels
     )
-    print(f"  ✅ Saved to '../data/cifar100_ae{REDUCED_DIM}.npz'")
-    print(f"  ✅ Autoencoder model saved to '../models/reducers/autoencoder_reducer.pth'")
+    print(f"  Saved to '../data/cifar100_ae{REDUCED_DIM}.npz'")
+    print(f"  Autoencoder model saved to '../models/reducers/autoencoder_reducer.pth'")
     
     # ============================================================
     # Summary

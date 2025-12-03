@@ -153,7 +153,7 @@ def main():
     # Test all input types
     for input_type, data_path in INPUT_FILES.items():
         print("\n" + "="*60)
-        print(f"Autoencoder Classifier on {input_type}")
+        print(f" Autoencoder Classifier on {input_type}")
         print("="*60)
         
         # Load data
@@ -188,7 +188,7 @@ def main():
         model_name = f"autoencoder_{input_type.lower().replace('-', '_')}.pth"
         torch.save(model.state_dict(), f'../models/{model_name}')
         
-        print(f"\n✅ Autoencoder ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
+        print(f"\n Autoencoder ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
         results.append(['Autoencoder', input_type, input_dim, acc, time_taken])
     
     # Save results
@@ -197,7 +197,7 @@ def main():
         writer.writerow(['Model', 'Input_Type', 'Input_Dim', 'Accuracy_%', 'Training_Time_sec'])
         writer.writerows(results)
     
-    print(f"\n✅ Results saved to '../results/autoencoder_results.csv'\n")
+    print(f"\n Results saved to '../results/autoencoder_results.csv'\n")
 
 
 if __name__ == "__main__":

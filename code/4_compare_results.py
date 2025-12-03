@@ -33,7 +33,7 @@ def plot_tsne_comparison(save_path):
     Create t-SNE visualizations comparing all 4 feature spaces:
     Raw, PCA, UMAP, Autoencoder
     """
-    print("\nGenerating t-SNE visualizations...")
+    print("\n Generating t-SNE visualizations...")
     
     # Load all data
     raw_data = np.load('../data/cifar100_raw.npz')
@@ -95,7 +95,7 @@ def plot_tsne_comparison(save_path):
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"  ✅ t-SNE comparison saved to '{save_path}'")
+    print(f"  t-SNE comparison saved to '{save_path}'")
 
 
 def create_comparison_plots(all_results, save_path):
@@ -241,7 +241,7 @@ def create_comparison_plots(all_results, save_path):
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"✅ Comparison plots saved to '{save_path}'")
+    print(f" Comparison plots saved to '{save_path}'")
 
 
 def create_summary_table(all_results, save_path):
@@ -314,7 +314,7 @@ def create_summary_table(all_results, save_path):
               fontsize=14, fontweight='bold', pad=20)
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"✅ Summary table saved to '{save_path}'")
+    print(f" Summary table saved to '{save_path}'")
 
 
 def main():
@@ -332,7 +332,7 @@ def main():
     # Combine all results
     all_results = pd.concat([resnet_df, transformer_df, autoencoder_df], ignore_index=True)
     all_results.to_csv('../results/all_results.csv', index=False)
-    print("✅ Combined results saved to '../results/all_results.csv'")
+    print(" Combined results saved to '../results/all_results.csv'")
     
     # ============================================================
     # 1. Create comparison plots
@@ -354,7 +354,7 @@ def main():
         try:
             plot_tsne_comparison('../results/tsne_comparison.png')
         except Exception as e:
-            print(f"  ⚠️ Could not generate t-SNE: {e}")
+            print(f"  Could not generate t-SNE: {e}")
     
     # ============================================================
     # 4. Print and save summary
@@ -444,7 +444,7 @@ def main():
         f.write("• insights.txt         - This report\n")
         f.write("="*70 + "\n")
     
-    print("\n✅ Insights saved to '../results/insights.txt'")
+    print("\n Insights saved to '../results/insights.txt'")
     
     print("\n" + "="*60)
     print("Analysis Complete!")

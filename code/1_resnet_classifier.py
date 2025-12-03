@@ -90,7 +90,7 @@ class ResNetClassifier:
         else:
             optimizer = optim.Adam(self.model.parameters(), lr=LEARNING_RATE)
         
-        print(f"\nTraining ResNet on {self.input_type}...")
+        print(f"\nTraining ResNet on {self.input_type}")
         start_time = time.time()
         
         for epoch in range(epochs):
@@ -177,7 +177,7 @@ def main():
         model_name = f"resnet_{input_type.lower().replace('-', '_')}.pth"
         torch.save(classifier.model.state_dict(), f'../models/{model_name}')
         
-        print(f"\n✅ ResNet ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
+        print(f"\n ResNet ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
         
         # Determine input dimension for results
         dim = FLATTENED_DIM if is_raw else REDUCED_DIM
@@ -189,7 +189,7 @@ def main():
         writer.writerow(['Model', 'Input_Type', 'Input_Dim', 'Accuracy_%', 'Training_Time_sec'])
         writer.writerows(results)
     
-    print(f"\n✅ Results saved to '../results/resnet_results.csv'\n")
+    print(f"\n Results saved to '../results/resnet_results.csv'\n")
 
 
 if __name__ == "__main__":
