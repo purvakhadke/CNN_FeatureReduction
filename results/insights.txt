@@ -1,0 +1,57 @@
+======================================================================
+EXPERIMENT INSIGHTS: PCA Impact on CIFAR-100 Classification
+======================================================================
+
+RESEARCH QUESTION:
+----------------------------------------------------------------------
+How does PCA dimensionality reduction (3072-D → 512-D) affect the
+classification performance of ResNet, Transformer, and Autoencoder
+architectures on CIFAR-100?
+
+KEY FINDINGS:
+----------------------------------------------------------------------
+
+1. ResNet:
+   Raw accuracy:     65.33%
+   PCA accuracy:     28.22%
+   Accuracy change:  -37.11%
+   Training speedup: 51.67x
+   → Significant accuracy loss; PCA may remove important features
+
+2. Transformer:
+   Raw accuracy:     34.76%
+   PCA accuracy:     31.76%
+   Accuracy change:  -3.00%
+   Training speedup: 2.34x
+   → Moderate accuracy trade-off for 2.3x speedup
+
+3. Autoencoder:
+   Raw accuracy:     27.89%
+   PCA accuracy:     20.02%
+   Accuracy change:  -7.87%
+   Training speedup: 8.45x
+   → Significant accuracy loss; PCA may remove important features
+
+======================================================================
+CONCLUSIONS:
+----------------------------------------------------------------------
+• Best model on raw data: ResNet (65.33%)
+• Best model with PCA:    Transformer (31.76%)
+• Average accuracy change with PCA: -15.99%
+• Average training speedup with PCA: 20.82x
+
+t-SNE INTERPRETATION:
+----------------------------------------------------------------------
+The t-SNE visualization shows how well-separated the class clusters are
+in each feature space. More distinct, tight clusters indicate better
+separability and potentially easier classification.
+
+======================================================================
+GENERATED FILES:
+----------------------------------------------------------------------
+• comparison_plots.png - Accuracy, time, and PCA impact charts
+• summary_table.png    - Summary table as image
+• tsne_comparison.png  - t-SNE visualization (Raw vs PCA)
+• all_results.csv      - Combined numerical results
+• insights.txt         - This report
+======================================================================

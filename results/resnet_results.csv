@@ -1,0 +1,3 @@
+Model,Input_Type,Input_Dim,Accuracy_%,Training_Time_sec
+ResNet,Raw,3072,65.33,6185.899773836136
+ResNet,PCA-512,512,28.22,119.73061418533325
