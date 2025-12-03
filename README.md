@@ -9,13 +9,13 @@
 ---
 
 ## Table of Contents
-* [Project Overview](#-project-overview)
-* [Key Features](#-key-features)
-* [Experimental Pipeline](#-experimental-pipeline)
-* [Installation](#-installation)
-* [Usage](#-usage)
-* [Results](#-results)
-* [Conclusion](#-conclusion)
+* [Project Overview](#project-overview)
+* [Key Features](#key-features)
+* [Experimental Pipeline](#experimental-pipeline)
+* [Installation](#installation)
+* [Usage](#usage)
+* [Results](#results)
+* [Conclusion](#conclusion)
 ---
 
 ## Project Overview
