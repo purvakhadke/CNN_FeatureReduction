@@ -128,7 +128,7 @@ def create_comparison_plots(all_results, save_path):
                        color=colors[i], edgecolor='white', linewidth=0.5)
     
     ax1.set_ylabel('Test Accuracy (%)', fontsize=11)
-    ax1.set_title('(a) Classification Accuracy by Model', fontsize=12, fontweight='bold', pad=10)
+    ax1.set_title('Classification Accuracy', fontsize=12, fontweight='bold', pad=10)
     ax1.set_xticks(x)
     ax1.set_xticklabels(models, fontsize=11)
     ax1.legend(loc='upper right', fontsize=9, frameon=False)
@@ -152,7 +152,7 @@ def create_comparison_plots(all_results, save_path):
                 color=colors[i], edgecolor='white', linewidth=0.5)
     
     ax2.set_ylabel('Training Time (seconds)', fontsize=11)
-    ax2.set_title('(b) Training Time by Model', fontsize=12, fontweight='bold', pad=10)
+    ax2.set_title('Training Time', fontsize=12, fontweight='bold', pad=10)
     ax2.set_xticks(x)
     ax2.set_xticklabels(models, fontsize=11)
     ax2.legend(loc='upper right', fontsize=9, frameon=False)
@@ -228,8 +228,7 @@ def create_comparison_plots(all_results, save_path):
         ax.set_yticklabels(method_labels, fontsize=10)
         ax.set_xlabel('Percentage (%)', fontsize=10)
         
-        plot_letter = chr(99 + plot_idx)  # c, d, e
-        ax.set_title(f'({plot_letter}) {model} Impact Summary', fontsize=12, fontweight='bold', pad=10)
+        ax.set_title(f'{model} Impact', fontsize=12, fontweight='bold', pad=10)
         
         if plot_idx == 0:  # Only show legend on first plot
             ax.legend(loc='upper right', fontsize=8, frameon=False)
