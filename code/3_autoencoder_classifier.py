@@ -169,6 +169,8 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     acc, time_taken = train_autoencoder_classifier(model, train_loader, test_loader, device, EPOCHS)
+    os.makedirs('../models', exist_ok=True)
+    torch.save(model.state_dict(), '../models/autoencoder_raw.pth')
     print(f"\n✅ Autoencoder (Raw) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
     results.append(['Autoencoder', 'Raw', FLATTENED_DIM, acc, time_taken])
     
@@ -193,6 +195,8 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     acc, time_taken = train_autoencoder_classifier(model, train_loader, test_loader, device, EPOCHS)
+    os.makedirs('../models', exist_ok=True)
+    torch.save(model.state_dict(), '../models/autoencoder_pca.pth')
     print(f"\n✅ Autoencoder (PCA) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
     results.append(['Autoencoder', f'PCA-{PCA_COMPONENTS}', PCA_COMPONENTS, acc, time_taken])
     

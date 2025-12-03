@@ -169,6 +169,10 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
     
     acc, time_taken = classifier.train(train_loader, test_loader, device, RESNET_EPOCH)
+    # Save model
+    os.makedirs('../models', exist_ok=True)
+    torch.save(classifier.model.state_dict(), '../models/resnet_raw.pth')
+    
     print(f"\n✅ ResNet (Raw) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
     results.append(['ResNet', 'Raw', FLATTENED_DIM, acc, time_taken])
     
@@ -189,6 +193,9 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     acc, time_taken = classifier.train(train_loader, test_loader, device, EPOCHS)
+    os.makedirs('../models', exist_ok=True)
+    torch.save(classifier.model.state_dict(), '../models/resnet_pca.pth')
+
     print(f"\n✅ ResNet (PCA) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
     results.append(['ResNet', f'PCA-{PCA_COMPONENTS}', PCA_COMPONENTS, acc, time_taken])
     

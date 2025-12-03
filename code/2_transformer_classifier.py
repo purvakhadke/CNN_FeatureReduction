@@ -157,6 +157,9 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     acc, time_taken = train_transformer(model, train_loader, test_loader, device, EPOCHS)
+    os.makedirs('../models', exist_ok=True)
+    torch.save(model.state_dict(), '../models/transformer_raw.pth')
+
     print(f"\n✅ Transformer (Raw) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
     results.append(['Transformer', 'Raw', FLATTENED_DIM, acc, time_taken])
     
@@ -183,7 +186,10 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     acc, time_taken = train_transformer(model, train_loader, test_loader, device, EPOCHS)
+    os.makedirs('../models', exist_ok=True)
+    torch.save(model.state_dict(), '../models/transformer_pca.pth')
     print(f"\n✅ Transformer (PCA) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
+
     results.append(['Transformer', f'PCA-{PCA_COMPONENTS}', PCA_COMPONENTS, acc, time_taken])
     
     # Save results
