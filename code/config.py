@@ -55,3 +55,11 @@ TRANSFORMER_DROPOUT = 0.1
 
 # Autoencoder classifier specific
 AUTOENCODER_HIDDEN_DIMS = [512, 256, 128]
+
+# ============================================================
+# VISUALIZATION CONFIGURATION
+# ============================================================
+TSNE_PERPLEXITY = 30
+TSNE_N_ITER = 1000
+TSNE_SAMPLE_SIZE = 2000  # Number of samples to use for t-SNE (for speed)
+RANDOM_SEED = 42
