@@ -1,0 +1,3 @@
+Model,Input_Type,Input_Dim,Accuracy_%,Training_Time_sec
+Autoencoder,Raw,3072,27.89,726.6187686920166
+Autoencoder,PCA-512,512,20.02,85.9508900642395

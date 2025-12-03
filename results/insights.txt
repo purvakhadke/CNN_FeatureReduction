@@ -1,0 +1,41 @@
+======================================================================
+EXPERIMENT INSIGHTS: PCA Impact on CIFAR-100 Classification
+======================================================================
+
+Research Question:
+How does PCA dimensionality reduction affect the performance of different
+classifier architectures (ResNet, Transformer, Autoencoder) on CIFAR-100?
+
+Key Findings:
+----------------------------------------------------------------------
+
+1. ResNet:
+   Raw accuracy: 65.33%
+   PCA accuracy: 28.22%
+   Accuracy change: -37.11%
+   Training speedup: 51.67x
+   → PCA significantly HURT accuracy (trade-off for 51.7x speedup)
+
+2. Transformer:
+   Raw accuracy: 34.76%
+   PCA accuracy: 31.76%
+   Accuracy change: -3.00%
+   Training speedup: 2.34x
+   → PCA maintained similar accuracy with 2.3x speedup
+
+3. Autoencoder:
+   Raw accuracy: 27.89%
+   PCA accuracy: 20.02%
+   Accuracy change: -7.87%
+   Training speedup: 8.45x
+   → PCA significantly HURT accuracy (trade-off for 8.5x speedup)
+
+======================================================================
+Conclusions:
+----------------------------------------------------------------------
+- Best model on raw data: ResNet (65.33%)
+- Best model with PCA: Transformer (31.76%)
+- Average accuracy change with PCA: -15.99%
+- Average training speedup with PCA: 20.82x
+
+======================================================================
