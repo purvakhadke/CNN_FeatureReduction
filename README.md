@@ -1,96 +1,139 @@
-# Comparative Analysis of Dimensionality Reduction Methods for Image Classification
+# CIFAR-100 Dimensionality Reduction Comparison
 
-![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0-orange)
+This project compares different dimensionality reduction methods for image classification on CIFAR-100.
 
-**Authors:** Sahil Dadhwal, Purva Khadke, Sarvesh Halbe  
-**Course:** ECS 271 - Machine Learning
+## Overview
 
----
+We compare 3 reduction methods (PCA, UMAP, Autoencoder) against raw features using 3 classifiers (ResNet, Transformer, Autoencoder). This gives us 12 total experiments.
 
-## Table of Contents
-* [Project Overview](#project-overview)
-* [Key Features](#key-features)
-* [Experimental Pipeline](#experimental-pipeline)
-* [Installation](#installation)
-* [Usage](#usage)
-* [Results](#results)
-* [Conclusion](#conclusion)
----
+## Requirements
 
-## Project Overview
-High-dimensional image data poses significant computational challenges for modern machine learning models. This project investigates the trade-off between **classification accuracy** and **computational efficiency** by applying various dimensionality reduction techniques to the **CIFAR-100** dataset.
+Python 3.8 or higher
 
-We benchmark **Linear (PCA)** vs. **Nonlinear (UMAP, Autoencoder)** reduction methods across three distinct classifier architectures:
-1.  **ResNet-50** (Transfer Learning)
-2.  **Vision Transformer** (Custom, Trained from Scratch)
-3.  **Autoencoder Classifier** (Joint Reconstruction & Classification)
+### Install dependencies
 
-### The Core Problem
-Selecting the right reduction technique is critical because the distinction between linear and nonlinear approaches impacts the final classification performance. Our goal is to identify which method best preserves classification accuracy and to determine whether modern Transformer architectures can outperform traditional Autoencoders in this domain.
-
----
-
-## Key Features
-* **Comprehensive Benchmark:** Evaluates 12 unique experimental conditions (4 Inputs × 3 Models).
-* **Dataset:** CIFAR-100 (60,000 images, 100 classes).
-* **Dimensionality Reduction:** Compresses inputs from **3,072** dimensions down to **512**.
-* **Model Variety:** Compares standard CNNs (ResNet) against modern Vision Transformers (ViT) and Deep Autoencoders.
-* **Metric Analysis:** Detailed tracking of Top-1 Accuracy, Training Time, and Reconstruction Loss.
-
----
-
-## Experimental Pipeline
-
-The following table outlines the end-to-end workflow implemented in this project, from raw data ingestion to final model evaluation.
-
-| Stage | Component | Description & Configuration |
-| :--- | :--- | :--- |
-| **1. Data Input** | **CIFAR-100** | Loading 60,000 images across 100 classes (Split: 50k Train / 10k Test). |
-| **2. Preprocessing** | **Flatten & Scale** | Images are flattened from $32\times32\times3$ to **3,072-D vectors** and normalized to $[0, 1]$. |
-| **3. Dimensionality Reduction** | **Compression** | Reducing features from **3,072 $\rightarrow$ 512 dimensions** using PCA, UMAP, or Autoencoders. |
-| **4. Classification** | **Model Training** | Training ResNet-50 (Transfer Learning), Vision Transformer, or AE Classifier on the reduced data. |
-| **5. Evaluation** | **Metrics** | Measuring Classification Accuracy (%), Training Time (seconds), and Reconstruction Loss. |
-
----
-
-## Installation
-
-### Prerequisites
-Ensure you have Python 3.8+ installed.
-
-### Setup
-1.  **Clone the repository**
-    ```bash
-    cd CNN_FeatureReduction
-    git clone https://github.com/purvakhadke/CNN_FeatureReduction.git
-    ```
-
-2.  **Install dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
----
-
-## Usage
-
-All source code is located in the `code` folder. To run the experiments, navigate to that directory and execute the `main.py` script.
-
-```bash
-cd code
 ```
-## Results
+pip install torch torchvision
+pip install numpy
+pip install pandas
+pip install matplotlib
+pip install scikit-learn
+pip install umap-learn
+pip install joblib
+```
 
-| **Stage** | **Component** | **Description & Configuration** |
-| :--- | :--- | :--- |
-| **1. Classifier** | **ResNet-50 / Transformer / AE Classifier** | Evaluation of three model families across multiple input representations. |
-| **2. Input Data** | **Raw / PCA / UMAP** | Models trained on **3,072-D raw vectors** or **512-D compressed features** (PCA or UMAP). |
-| **3. Dimensions** | **Feature Size** | Raw images: **3072 dimensions**; Compressed representations: **512 dimensions**. |
-| **4. Performance** | **Accuracy (%)** | ResNet-50 (Raw): **65.82%** (highest). Transformer (Raw): **35.45%**. PCA inputs generally improved stability versus UMAP. |
-| **5. Efficiency** | **Training Time** | Fastest: ResNet-50 (PCA / UMAP): **~2 min**. Slowest: Transformer (Raw): **~136 min**. |
-| **6. Insight** | **Observations** | Raw ResNet-50 performs best; PCA drastically reduces training time; UMAP harms structure; Transformer struggles without pretraining; AE fastest but least accurate among major models. |
+Or install all at once:
 
-## Conclusion
+```
+pip install torch torchvision numpy pandas matplotlib scikit-learn umap-learn joblib
+```
 
-Our experiments confirm that transfer learning with ResNet-50 on raw data yields the highest accuracy (65.82%), significantly outperforming all dimensionality reduction methods. While techniques like PCA reduced training time by nearly 98%, they incurred a substantial accuracy loss, with UMAP failing to preserve class-discriminative features in high dimensions. Ultimately, dimensionality reduction serves as a viable trade-off only when computational speed is strictly prioritized over predictive precision.
+## Project Structure
+
+```
+project/
+    scripts/
+        config.py                    # Configuration and hyperparameters
+        main.py                      # Run full pipeline
+        0_prepare_data.py            # Download CIFAR-100 and apply reductions
+        1_resnet_classifier.py       # Train ResNet on all input types
+        2_transformer_classifier.py  # Train Transformer on all input types
+        3_autoencoder_classifier.py  # Train Autoencoder on all input types
+        4_compare_results.py         # Generate plots and comparison
+    data/                            # Created automatically
+    results/                         # Created automatically
+    models/                          # Created automatically
+```
+
+## How to Run
+
+### Option 1: Run full pipeline
+
+```
+cd scripts
+python main.py
+```
+
+This will run all steps in order and takes several hours on CPU.
+
+### Option 2: Run steps individually
+
+```
+cd scripts
+python 0_prepare_data.py
+python 1_resnet_classifier.py
+python 2_transformer_classifier.py
+python 3_autoencoder_classifier.py
+python 4_compare_results.py
+```
+
+### Quick Test Mode
+
+To test with a smaller dataset, edit config.py and uncomment this line:
+
+```
+SAMPLE_SIZE = 5000  # Uncomment for quick testing
+```
+
+## Configuration
+
+All hyperparameters are in config.py:
+
+- REDUCED_DIM: Target dimensions for reduction (default 512)
+- EPOCHS: Training epochs for classifiers (default 30)
+- BATCH_SIZE: Batch size for training (default 128)
+- LEARNING_RATE: Learning rate (default 0.001)
+
+## Outputs
+
+After running, check the results folder for:
+
+- comparison_plots.png: Accuracy and training time charts
+- tsne_comparison.png: t-SNE visualization of feature spaces
+- combined_results.csv: All accuracy and timing results
+- Individual CSV files for each classifier
+
+## Methods
+
+### Dimensionality Reduction
+
+- Raw: Original 3072-D flattened images
+- PCA: Linear reduction to 512-D (retains 95.23% variance)
+- UMAP: Nonlinear manifold projection to 512-D
+- Autoencoder: Neural network compression to 512-D
+
+### Classifiers
+
+- ResNet-50: Transfer learning from ImageNet (raw) or MLP (reduced)
+- Transformer: 4 encoder layers with 8 attention heads, trained from scratch
+- Autoencoder Classifier: Joint reconstruction and classification loss
+
+## Results Summary
+
+### Classification Accuracy
+
+| Model | Raw | PCA | UMAP | AE |
+|-------|-----|-----|------|-----|
+| ResNet | 65.82% | 28.69% | 10.07% | 28.75% |
+| Transformer | 35.45% | 30.79% | 1.00% | 27.74% |
+| Autoencoder | 27.68% | 20.22% | 8.20% | 20.57% |
+
+### Accuracy and Training Time Comparison
+
+![Comparison Plots](results/comparison_plots.png)
+
+### Feature Space Visualization (t-SNE)
+
+![t-SNE Comparison](results/tsne_comparison.png)
+
+### Key Findings
+- Raw features with ResNet (transfer learning) achieved the best accuracy
+- UMAP failed for high-dimensional reduction (1-10% accuracy)
+- PCA and Autoencoder reduction performed similarly (around 26%)
+- Dimensionality reduction reduced training time by 50-98%
+
+## Authors
+
+Sahil Dadhwal, Purva Khadke, Sarvesh Halbe
+
+<!-- Note: LLMs were used at a surface level to: help create this readme, and help the presentation slides look nicer, and help brainstorm things that would speed up computation time (this is why we started ti save the models locally), -->
