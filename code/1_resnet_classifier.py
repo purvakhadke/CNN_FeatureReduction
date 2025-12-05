@@ -1,7 +1,6 @@
-"""
-ResNet Classifier for CIFAR-100
-Works on: Raw, PCA, UMAP, and Autoencoder-reduced features
-"""
+# ResNet Classifier for CIFAR-100
+# Works on: Raw, PCA, UMAP, and Autoencoder-reduced features
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -22,7 +21,6 @@ class ResNetClassifier:
         self.model = None
         
     def build_model(self, input_dim=None):
-        """Build ResNet model"""
         if self.is_raw:
             # For raw images: use pretrained ResNet50
             self.model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
@@ -32,7 +30,7 @@ class ResNetClassifier:
             # Replace classifier head
             self.model.fc = nn.Linear(2048, NUM_CLASSES)
         else:
-            # For reduced features (PCA/UMAP/AE): use MLP
+            # For the reduced ones PCA/UMAP/AE use MLP
             self.model = nn.Sequential(
                 nn.Linear(input_dim, 1024),
                 nn.BatchNorm1d(1024),
@@ -53,11 +51,10 @@ class ResNetClassifier:
         return device
     
     def prepare_data(self, data_path):
-        """Load and prepare data"""
         data = np.load(data_path)
         
         if self.is_raw:
-            # Raw images - reshape and apply transforms
+            # reshape/ transform
             train_images = data['train_features'].reshape(-1, 32, 32, 3)
             test_images = data['test_features'].reshape(-1, 32, 32, 3)
             
@@ -65,14 +62,14 @@ class ResNetClassifier:
             train_features = torch.from_numpy(train_images).permute(0, 3, 1, 2).float()
             test_features = torch.from_numpy(test_images).permute(0, 3, 1, 2).float()
             
-            # Resize and normalize
-            resize = transforms.Resize(RESNET_IMAGE_SIZE)
+            # Resize/normalize
+            resize = transforms.Resize(96)
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             
             train_features = torch.stack([normalize(resize(img)) for img in train_features])
             test_features = torch.stack([normalize(resize(img)) for img in test_features])
         else:
-            # Reduced features - already flattened
+            # else theyre already flattened
             train_features = torch.from_numpy(data['train_features']).float()
             test_features = torch.from_numpy(data['test_features']).float()
         
@@ -82,7 +79,6 @@ class ResNetClassifier:
         return train_features, train_labels, test_features, test_labels
     
     def train(self, train_loader, test_loader, device, epochs):
-        """Train the model"""
         criterion = nn.CrossEntropyLoss()
         
         if self.is_raw:
@@ -123,7 +119,6 @@ class ResNetClassifier:
         return accuracy, train_time
     
     def evaluate(self, test_loader, device):
-        """Evaluate the model"""
         self.model.eval()
         correct = 0
         total = 0
@@ -144,12 +139,7 @@ def main():
     os.makedirs('../models', exist_ok=True)
     results = []
     
-    # Test all input types
     for input_type, data_path in INPUT_FILES.items():
-        print("\n" + "="*60)
-        print(f"ResNet on {input_type}")
-        print("="*60)
-        
         is_raw = (input_type == 'Raw')
         classifier = ResNetClassifier(input_type=input_type)
         
@@ -157,7 +147,7 @@ def main():
         if is_raw:
             input_dim = None
             epochs = RESNET_EPOCH
-            batch_size = 64  # Smaller batch for images
+            batch_size = 64
         else:
             input_dim = REDUCED_DIM
             epochs = EPOCHS
@@ -177,10 +167,8 @@ def main():
         model_name = f"resnet_{input_type.lower().replace('-', '_')}.pth"
         torch.save(classifier.model.state_dict(), f'../models/{model_name}')
         
-        print(f"\n ResNet ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
-        
         # Determine input dimension for results
-        dim = FLATTENED_DIM if is_raw else REDUCED_DIM
+        dim = 32*32*3 if is_raw else REDUCED_DIM
         results.append(['ResNet', input_type, dim, acc, time_taken])
     
     # Save results
@@ -189,8 +177,6 @@ def main():
         writer.writerow(['Model', 'Input_Type', 'Input_Dim', 'Accuracy_%', 'Training_Time_sec'])
         writer.writerows(results)
     
-    print(f"\n Results saved to '../results/resnet_results.csv'\n")
-
 
 if __name__ == "__main__":
     main()

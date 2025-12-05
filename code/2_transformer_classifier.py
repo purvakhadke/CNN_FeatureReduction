@@ -1,7 +1,3 @@
-"""
-Transformer Classifier for CIFAR-100
-Works on: Raw, PCA, UMAP, and Autoencoder-reduced features
-"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -26,6 +22,8 @@ class TransformerClassifier(nn.Module):
         self.cls_token = nn.Parameter(torch.randn(1, 1, TRANSFORMER_DIM))
         
         # Transformer encoder
+        # apparently GeLU is better than ReLU for transformer image classigncaion
+        # lets messaround with this to see what different activations do (if we have time)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=TRANSFORMER_DIM,
             nhead=TRANSFORMER_HEADS,
@@ -45,17 +43,13 @@ class TransformerClassifier(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         
-        # Create patches: (batch, input_dim) -> (batch, num_patches, patch_size)
+        # Createand embed patches
         x = x.view(batch_size, self.num_patches, self.patch_size)
-        
-        # Embed patches
         x = self.patch_embedding(x)
         
         # Add CLS token
         cls_tokens = self.cls_token.expand(batch_size, -1, -1)
         x = torch.cat([cls_tokens, x], dim=1)
-        
-        # Add position embedding
         x = x + self.pos_embedding
         
         # Transformer
@@ -69,10 +63,11 @@ class TransformerClassifier(nn.Module):
 
 
 def get_patch_config(input_dim):
-    """Get patch configuration based on input dimension"""
-    if input_dim == FLATTENED_DIM:  # 3072 (raw)
+    if input_dim == (32*32*3):
         num_patches = 64
-    else:  # Reduced dimensions (512)
+    
+    # else its 512, the reduced dimensions (512)
+    else:
         num_patches = 32
     
     patch_size = input_dim // num_patches
@@ -80,12 +75,10 @@ def get_patch_config(input_dim):
 
 
 def train_transformer(model, train_loader, test_loader, device, epochs, input_type):
-    """Train transformer classifier"""
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, epochs)
     
-    print(f"\n Training Transformer on {input_type}...")
     start_time = time.time()
     
     for epoch in range(epochs):
@@ -111,11 +104,14 @@ def train_transformer(model, train_loader, test_loader, device, epochs, input_ty
         scheduler.step()
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100 * correct / total
-        print(f"  Epoch {epoch+1}/{epochs} - Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.2f}%")
+        print("====")
+        print(f"Epoch {epoch+1}/{epochs}")
+        print(f"Loss: {epoch_loss:.4f}")
+        print(f"Train Acc: {epoch_acc:.2f}%")
+        print("====")
     
     train_time = time.time() - start_time
     
-    # Evaluate
     model.eval()
     correct = 0
     total = 0
@@ -136,30 +132,22 @@ def main():
     os.makedirs('../results', exist_ok=True)
     os.makedirs('../models', exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
     
     results = []
-    
-    # Test all input types
     for input_type, data_path in INPUT_FILES.items():
-        print("\n" + "="*60)
-        print(f"Transformer on {input_type}")
-        print("="*60)
-        
-        # Load data
+        # Load tje data
         data = np.load(data_path)
         train_features = torch.from_numpy(data['train_features']).float()
         train_labels = torch.from_numpy(data['train_labels']).long()
         test_features = torch.from_numpy(data['test_features']).float()
         test_labels = torch.from_numpy(data['test_labels']).long()
         
-        # Determine input dimension
+        # if its raw then input is 32x32x3 else its the reduced 512
         is_raw = (input_type == 'Raw')
-        input_dim = FLATTENED_DIM if is_raw else REDUCED_DIM
+        input_dim = 32*32*3 if is_raw else REDUCED_DIM
         
-        # Get patch configuration
+        # Get patch configs
         num_patches, patch_size = get_patch_config(input_dim)
-        print(f"  Input dim: {input_dim}, Patches: {num_patches}, Patch size: {patch_size}")
         
         # Build model
         model = TransformerClassifier(input_dim, patch_size, num_patches).to(device)
@@ -177,17 +165,13 @@ def main():
         model_name = f"transformer_{input_type.lower().replace('-', '_')}.pth"
         torch.save(model.state_dict(), f'../models/{model_name}')
         
-        print(f"\n Transformer ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
         results.append(['Transformer', input_type, input_dim, acc, time_taken])
     
-    # Save results
+    # Save results into CSV for the reporr
     with open('../results/transformer_results.csv', 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Model', 'Input_Type', 'Input_Dim', 'Accuracy_%', 'Training_Time_sec'])
         writer.writerows(results)
-    
-    print(f"\n Results saved to '../results/transformer_results.csv'\n")
-
 
 if __name__ == "__main__":
     main()

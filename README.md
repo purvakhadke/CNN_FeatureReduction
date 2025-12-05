@@ -67,14 +67,6 @@ python 3_autoencoder_classifier.py
 python 4_compare_results.py
 ```
 
-### Quick Test Mode
-
-To test with a smaller dataset, edit config.py and uncomment this line:
-
-```
-SAMPLE_SIZE = 5000  # Uncomment for quick testing
-```
-
 ## Configuration
 
 All hyperparameters are in config.py:

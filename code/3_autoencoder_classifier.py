@@ -1,10 +1,3 @@
-"""
-Autoencoder Classifier for CIFAR-100
-Works on: Raw, PCA, UMAP, and Autoencoder-reduced features
-
-Note: This is an autoencoder used as a CLASSIFIER, not for dimensionality reduction.
-It learns features through reconstruction, then classifies.
-"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -33,7 +26,7 @@ class AutoencoderClassifier(nn.Module):
             prev_dim = hidden_dim
         self.encoder = nn.Sequential(*encoder_layers)
         
-        # Decoder (for reconstruction loss)
+        # Decoder for reconstruction loss
         decoder_layers = []
         for hidden_dim in reversed(hidden_dims[:-1]):
             decoder_layers.extend([
@@ -45,7 +38,7 @@ class AutoencoderClassifier(nn.Module):
         decoder_layers.append(nn.Linear(prev_dim, input_dim))
         self.decoder = nn.Sequential(*decoder_layers)
         
-        # Classifier head (from bottleneck)
+        # Classifier head from bottleneck
         self.classifier = nn.Sequential(
             nn.Linear(hidden_dims[-1], hidden_dims[-1] // 2),
             nn.ReLU(),
@@ -67,25 +60,17 @@ class AutoencoderClassifier(nn.Module):
             return classification
 
 
-def get_hidden_dims(input_dim):
-    """Get hidden dimensions based on input size"""
-    if input_dim == FLATTENED_DIM:  # 3072 (raw)
-        return [1024, 512, 256]
-    else:  # Reduced dimensions (512)
-        return [256, 128, 64]
-
-
 def train_autoencoder_classifier(model, train_loader, test_loader, device, epochs, input_type):
-    """Train autoencoder classifier with joint classification and reconstruction loss"""
     classification_criterion = nn.CrossEntropyLoss()
     reconstruction_criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
     # Loss weights
-    alpha = 0.7  # Classification weight
-    beta = 0.3   # Reconstruction weight
+    # Classification weight
+    alpha = 0.7  
+    # Reconstruction weight
+    beta = 0.3   
     
-    print(f"\nTraining Autoencoder Classifier on {input_type}...")
     start_time = time.time()
     
     for epoch in range(epochs):
@@ -125,7 +110,6 @@ def train_autoencoder_classifier(model, train_loader, test_loader, device, epoch
     
     train_time = time.time() - start_time
     
-    # Evaluate (classification only)
     model.eval()
     correct = 0
     total = 0
@@ -150,12 +134,7 @@ def main():
     
     results = []
     
-    # Test all input types
     for input_type, data_path in INPUT_FILES.items():
-        print("\n" + "="*60)
-        print(f" Autoencoder Classifier on {input_type}")
-        print("="*60)
-        
         # Load data
         data = np.load(data_path)
         train_features = torch.from_numpy(data['train_features']).float()
@@ -163,12 +142,14 @@ def main():
         test_features = torch.from_numpy(data['test_features']).float()
         test_labels = torch.from_numpy(data['test_labels']).long()
         
-        # Determine input dimension and hidden dims
-        is_raw = (input_type == 'Raw')
-        input_dim = FLATTENED_DIM if is_raw else REDUCED_DIM
-        hidden_dims = get_hidden_dims(input_dim)
-        
-        print(f"  Input dim: {input_dim}, Hidden dims: {hidden_dims}")
+
+        input_dim = REDUCED_DIM
+        hidden_dims = [256, 128, 64]
+        # if its 3072 (raw), cjange hidden D and input D
+        if input_type == 'Raw':  
+            input_dim = 32*32*3
+            hidden_dims = [1024, 512, 256]
+
         
         # Build model
         model = AutoencoderClassifier(input_dim, hidden_dims).to(device)
@@ -188,7 +169,6 @@ def main():
         model_name = f"autoencoder_{input_type.lower().replace('-', '_')}.pth"
         torch.save(model.state_dict(), f'../models/{model_name}')
         
-        print(f"\n Autoencoder ({input_type}) - Accuracy: {acc:.2f}%, Time: {time_taken:.2f}s")
         results.append(['Autoencoder', input_type, input_dim, acc, time_taken])
     
     # Save results
@@ -197,8 +177,6 @@ def main():
         writer.writerow(['Model', 'Input_Type', 'Input_Dim', 'Accuracy_%', 'Training_Time_sec'])
         writer.writerows(results)
     
-    print(f"\n Results saved to '../results/autoencoder_results.csv'\n")
-
 
 if __name__ == "__main__":
     main()

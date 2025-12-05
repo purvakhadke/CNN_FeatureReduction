@@ -1,8 +1,6 @@
-"""
-Compare all results and create visualizations
-Compares: Raw vs PCA vs UMAP vs Autoencoder dimensionality reduction
-Includes: t-SNE, comparison plots, summary table
-"""
+# plots and tables and any other diagrams we might need, ADD it HERE
+# make sure to run this file independently if the data is already loaded in results (if you are only making plots and tables w that same data, so you domt have to regenerate data and wait for code to run)
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,18 +8,14 @@ from sklearn.manifold import TSNE
 import os
 from config import *
 
-# ============================================================
-# MODERN COLOR SCHEME
-# ============================================================
-# colors (using https://www.simplifiedsciencepublishing.com/resources/best-color-palettes-for-scientific-figures-and-data-visualizations)
+# used llm to help create nicer looking plots w setting colors/fonts
 COLORS = {
-    'Raw':  '#2C3E50',  # dark slate
-    'PCA':  '#C0392B',  # dark red
-    'UMAP': '#2980B9',  # strong blue
-    'AE':   '#27AE60'   # green
+    'Raw':  '#2C3E50',
+    'PCA':  '#C0392B',
+    'UMAP': '#2980B9',
+    'AE':   '#27AE60'
 }
 
-# Set global style
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['font.size'] = 11
 plt.rcParams['axes.spines.top'] = False
@@ -29,11 +23,8 @@ plt.rcParams['axes.spines.right'] = False
 
 
 def plot_tsne_comparison(save_path):
-    """
-    Create t-SNE visualizations comparing all 4 feature spaces:
-    Raw, PCA, UMAP, Autoencoder
-    """
-    print("\n Generating t-SNE visualizations...")
+    # Create t-SNE visuals comparing all 4 feature spaces (Raw, PCA, UMAP, Autoencoder)
+    # PAY ATTENCTION TO UMAP, that i think is most important bc we can actually see some possible issues w tbe weird clumps/patches 
     
     # Load all data
     raw_data = np.load('../data/cifar100_raw.npz')
@@ -43,12 +34,11 @@ def plot_tsne_comparison(save_path):
     
     test_labels = raw_data['test_labels']
     
-    # Sample for speed
     n_samples = min(TSNE_SAMPLE_SIZE, len(test_labels))
     np.random.seed(RANDOM_SEED)
     indices = np.random.choice(len(test_labels), n_samples, replace=False)
     
-    # Use all classes (no filtering)
+    # Use all classes
     labels_subset = test_labels[indices]
     selected_classes = np.unique(labels_subset)
     
@@ -99,20 +89,16 @@ def plot_tsne_comparison(save_path):
 
 
 def create_comparison_plots(all_results, save_path):
-    """Create comparison visualizations with modern simple color scheme"""
-    
+
     models = ['ResNet', 'Transformer', 'Autoencoder']
     input_types = ['Raw', f'PCA-{REDUCED_DIM}', f'UMAP-{REDUCED_DIM}', f'AE-{REDUCED_DIM}']
     input_labels = ['Raw', 'PCA', 'UMAP', 'AE']
     
-    # Color list for input types - USE THE COLORS DICTIONARY!
     colors = [COLORS['Raw'], COLORS['PCA'], COLORS['UMAP'], COLORS['AE']]
     
     fig = plt.figure(figsize=(18, 10), facecolor='white')
     
-    # ============================================================
-    # Plot 1: Accuracy by Model (grouped by input type)
-    # ============================================================
+    # Plot 1: Accuracy by Model
     ax1 = fig.add_subplot(2, 3, 1)
     x = np.arange(len(models))
     width = 0.18
@@ -136,9 +122,7 @@ def create_comparison_plots(all_results, save_path):
     ax1.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
     ax1.set_axisbelow(True)
     
-    # ============================================================
     # Plot 2: Training Time by Model
-    # ============================================================
     ax2 = fig.add_subplot(2, 3, 2)
     
     for i, (input_type, label) in enumerate(zip(input_types, input_labels)):
@@ -159,9 +143,7 @@ def create_comparison_plots(all_results, save_path):
     ax2.grid(axis='y', alpha=0.3, linestyle='-', linewidth=0.5)
     ax2.set_axisbelow(True)
     
-    # ============================================================
     # Plots 3-5: Impact Summary for Each Classifier
-    # ============================================================
     for plot_idx, model in enumerate(models):
         ax = fig.add_subplot(2, 3, plot_idx + 4)  # positions 4, 5, 6 (second row)
         
@@ -240,12 +222,9 @@ def create_comparison_plots(all_results, save_path):
     plt.tight_layout()
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f" Comparison plots saved to '{save_path}'")
 
 
-def create_summary_table(all_results, save_path):
-    """Create summary table as image with clean styling"""
-    
+def create_summary_table(all_results, save_path):    
     models = ['ResNet', 'Transformer', 'Autoencoder']
     input_types = ['Raw', f'PCA-{REDUCED_DIM}', f'UMAP-{REDUCED_DIM}', f'AE-{REDUCED_DIM}']
     
@@ -313,13 +292,10 @@ def create_summary_table(all_results, save_path):
               fontsize=14, fontweight='bold', pad=20)
     plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"✅ Summary table saved to '{save_path}'")
 
 
 def main():
-    print("\n" + "="*60)
-    print("Generating Comparison Analysis")
-    print("="*60 + "\n")
+    print("Generating Results")
     
     os.makedirs('../results', exist_ok=True)
     
@@ -331,131 +307,19 @@ def main():
     # Combine all results
     all_results = pd.concat([resnet_df, transformer_df, autoencoder_df], ignore_index=True)
     all_results.to_csv('../results/all_results.csv', index=False)
-    print("✅ Combined results saved to '../results/all_results.csv'")
     
-    # ============================================================
     # 1. Create comparison plots
-    # ============================================================
-    print("\n[1/4] Creating comparison plots...")
     create_comparison_plots(all_results, '../results/comparison_plots.png')
     
-    # ============================================================
     # 2. Create summary table
-    # ============================================================
     print("\n[2/4] Creating summary table...")
     create_summary_table(all_results, '../results/summary_table.png')
     
-    # ============================================================
     # 3. t-SNE Visualization
-    # ============================================================
-    print("\n[3/4] Creating t-SNE visualization...")
-    if input("Do you want to regenerate TSNE chart (takes a min): Yes or No").upper() == "YES":
-        try:
-            plot_tsne_comparison('../results/tsne_comparison.png')
-        except Exception as e:
-            print(f"  Could not generate t-SNE: {e}")
+    # if input("Do you want to regenerate TSNE chart (takes a min): Yes or No").upper() == "YES":
+    #     plot_tsne_comparison('../results/tsne_comparison.png')
+    plot_tsne_comparison('../results/tsne_comparison.png')
     
-    # ============================================================
-    # 4. Print and save summary
-    # ============================================================
-    print("\n[4/4] Generating summary report...")
-    
-    # Print summary table
-    print("\n" + "="*70)
-    print("RESULTS SUMMARY")
-    print("="*70)
-    
-    models = ['ResNet', 'Transformer', 'Autoencoder']
-    input_types = ['Raw', f'PCA-{REDUCED_DIM}', f'UMAP-{REDUCED_DIM}', f'AE-{REDUCED_DIM}']
-    
-    print(f"\n{'Model':<15}", end='')
-    for inp in ['Raw', 'PCA', 'UMAP', 'AE']:
-        print(f"{inp:<12}", end='')
-    print()
-    print("-"*60)
-    
-    for model in models:
-        print(f"{model:<15}", end='')
-        for input_type in input_types:
-            row = all_results[(all_results['Model'] == model) & (all_results['Input_Type'] == input_type)]
-            if len(row) > 0:
-                print(f"{row['Accuracy_%'].values[0]:<12.2f}", end='')
-            else:
-                print(f"{'-':<12}", end='')
-        print()
-    
-    print("-"*60)
-    print(f"{'Average':<15}", end='')
-    for input_type in input_types:
-        avg = all_results[all_results['Input_Type'] == input_type]['Accuracy_%'].mean()
-        print(f"{avg:<12.2f}", end='')
-    print()
-    print("="*70)
-    
-    # Save insights
-    with open('../results/insights.txt', 'w') as f:
-        f.write("="*70 + "\n")
-        f.write("EXPERIMENT INSIGHTS: Dimensionality Reduction Comparison\n")
-        f.write("="*70 + "\n\n")
-        
-        f.write("RESEARCH QUESTION:\n")
-        f.write("-"*70 + "\n")
-        f.write("How do different dimensionality reduction methods (PCA, UMAP, Autoencoder)\n")
-        f.write("affect the classification performance of neural networks on CIFAR-100?\n\n")
-        
-        f.write("METHODS COMPARED:\n")
-        f.write("-"*70 + "\n")
-        f.write(f"• Raw: Original flattened images ({FLATTENED_DIM}-D)\n")
-        f.write(f"• PCA: Linear reduction ({REDUCED_DIM}-D)\n")
-        f.write(f"• UMAP: Nonlinear manifold learning ({REDUCED_DIM}-D)\n")
-        f.write(f"• Autoencoder: Learned nonlinear reduction ({REDUCED_DIM}-D)\n\n")
-        
-        f.write("CLASSIFIERS TESTED:\n")
-        f.write("-"*70 + "\n")
-        f.write("• ResNet-50 (pretrained on ImageNet - transfer learning)\n")
-        f.write("• Transformer (trained from scratch)\n")
-        f.write("• Autoencoder (trained from scratch)\n\n")
-        
-        f.write("RESULTS SUMMARY:\n")
-        f.write("-"*70 + "\n")
-        
-        # Find best results
-        best_overall = all_results.loc[all_results['Accuracy_%'].idxmax()]
-        f.write(f"Best overall: {best_overall['Model']} + {best_overall['Input_Type']} ")
-        f.write(f"({best_overall['Accuracy_%']:.2f}%)\n\n")
-        
-        for input_type in input_types:
-            subset = all_results[all_results['Input_Type'] == input_type]
-            avg_acc = subset['Accuracy_%'].mean()
-            avg_time = subset['Training_Time_sec'].mean()
-            label = input_type.split('-')[0]
-            f.write(f"{label}:\n")
-            f.write(f"  Avg Accuracy: {avg_acc:.2f}%\n")
-            f.write(f"  Avg Time: {avg_time:.1f}s\n")
-        
-        f.write("\n" + "="*70 + "\n")
-        f.write("GENERATED FILES:\n")
-        f.write("-"*70 + "\n")
-        f.write("• comparison_plots.png - Accuracy & time comparisons\n")
-        f.write("• summary_table.png    - Summary table as image\n")
-        f.write("• tsne_comparison.png  - t-SNE visualization (4 methods)\n")
-        f.write("• all_results.csv      - Combined numerical results\n")
-        f.write("• insights.txt         - This report\n")
-        f.write("="*70 + "\n")
-    
-    print("\n Insights saved to '../results/insights.txt'")
-    
-    print("\n" + "="*60)
-    print("Analysis Complete!")
-    print("="*60)
-    print("\nGenerated files in ../results/:")
-    print("  • comparison_plots.png  - 4-panel comparison")
-    print("  • summary_table.png     - Accuracy summary table")
-    print("  • tsne_comparison.png   - t-SNE for all 4 methods")
-    print("  • all_results.csv       - All numerical results")
-    print("  • insights.txt          - Analysis report")
-    print("="*60 + "\n")
-
 
 if __name__ == "__main__":
     main()
