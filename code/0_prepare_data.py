@@ -12,7 +12,7 @@ from umap import UMAP
 from config import *
 
 
-# Autoencoder for Dimensionality Reduction (not the same as autoencoder classiger)
+# Autoencoder for Dimensionality Reduction (not the same as autoencoder classifier)
 class DimReductionAutoencoder(nn.Module):
     def __init__(self, input_dim, latent_dim):
         super(DimReductionAutoencoder, self).__init__()
@@ -105,9 +105,9 @@ def save_data():
     os.makedirs('../data', exist_ok=True)
     os.makedirs('../models/reducers', exist_ok=True)
     
-    # this uses GPU if abailiable
+    # this uses GPU if available
     # I have a macbook so only CPU works, 
-    # I did not try Colab so maybe it works maybe it doesnt
+    # I did not try Colab so maybe it works maybe it doesn't
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
@@ -126,7 +126,7 @@ def save_data():
     print(f"Train shape: {train_images.shape}")
     print(f"Test shape: {test_images.shape}")
     
-    # Save the raw data as npz file so dont have to load again next time we run code
+    # Save the raw data as npz file so don't have to load again next time we run code
     np.savez_compressed(
         '../data/cifar100_raw.npz',
         train_features=train_images,
@@ -138,14 +138,14 @@ def save_data():
 
     # PCA Reduction (same way we save that file)
     # PCA is just math (no training), so we can just import PCA fn
-    pca = PCA(n_components = REDUCED_DIM, random_state = RANDOM_SEED) # the random seed part was recc by llm and documentation, i put in the congig file
+    pca = PCA(n_components = REDUCED_DIM, random_state = RANDOM_SEED) # the random seed part was recc by llm and documentation, i put in the config file
     pca.fit(train_images)
     
     train_pca = pca.transform(train_images)
     test_pca = pca.transform(test_images)
     
     pca_variance = pca.explained_variance_ratio_.sum()
-    # the variance at this REDUCED_DIM(512) is hiugh which is wjat we want
+    # the variance at this REDUCED_DIM(512) is high which is what we want
     print(f"Variance: {pca_variance:.4f} ({pca_variance*100:.2f}%)")
     
     # Save PCA model and data in npz file

@@ -23,7 +23,7 @@ class TransformerClassifier(nn.Module):
         
         # Transformer encoder
         # apparently GeLU is better than ReLU for transformer image classigncaion
-        # lets messaround with this to see what different activations do (if we have time)
+        # lets mess around with this to see what different activations do (if we have time)
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=TRANSFORMER_DIM,
             nhead=TRANSFORMER_HEADS,
@@ -43,7 +43,7 @@ class TransformerClassifier(nn.Module):
     def forward(self, x):
         batch_size = x.size(0)
         
-        # Createand embed patches
+        # Create and embed patches
         x = x.view(batch_size, self.num_patches, self.patch_size)
         x = self.patch_embedding(x)
         
@@ -104,11 +104,9 @@ def train_transformer(model, train_loader, test_loader, device, epochs, input_ty
         scheduler.step()
         epoch_loss = running_loss / len(train_loader)
         epoch_acc = 100 * correct / total
-        print("====")
         print(f"Epoch {epoch+1}/{epochs}")
         print(f"Loss: {epoch_loss:.4f}")
         print(f"Train Acc: {epoch_acc:.2f}%")
-        print("====")
     
     train_time = time.time() - start_time
     
@@ -135,7 +133,7 @@ def main():
     
     results = []
     for input_type, data_path in INPUT_FILES.items():
-        # Load tje data
+        # Load the data
         data = np.load(data_path)
         train_features = torch.from_numpy(data['train_features']).float()
         train_labels = torch.from_numpy(data['train_labels']).long()

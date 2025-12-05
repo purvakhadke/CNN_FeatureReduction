@@ -130,7 +130,6 @@ def main():
     os.makedirs('../results', exist_ok=True)
     os.makedirs('../models', exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
     
     results = []
     
@@ -145,7 +144,7 @@ def main():
 
         input_dim = REDUCED_DIM
         hidden_dims = [256, 128, 64]
-        # if its 3072 (raw), cjange hidden D and input D
+        # if its 3072 (raw), change hidden D and input D
         if input_type == 'Raw':  
             input_dim = 32*32*3
             hidden_dims = [1024, 512, 256]

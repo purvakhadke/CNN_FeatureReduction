@@ -1,5 +1,6 @@
 # plots and tables and any other diagrams we might need, ADD it HERE
-# make sure to run this file independently if the data is already loaded in results (if you are only making plots and tables w that same data, so you domt have to regenerate data and wait for code to run)
+# make sure to run this file independently if the data is already loaded in results 
+# (if you are only making plots and tables w that same data, so you domt have to regenerate data and wait for code to run)
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -24,7 +25,7 @@ plt.rcParams['axes.spines.right'] = False
 
 def plot_tsne_comparison(save_path):
     # Create t-SNE visuals comparing all 4 feature spaces (Raw, PCA, UMAP, Autoencoder)
-    # PAY ATTENCTION TO UMAP, that i think is most important bc we can actually see some possible issues w tbe weird clumps/patches 
+    # PAY ATTENTION TO UMAP, that i think is most important bc we can actually see some possible issues w tbe weird clumps/patches 
     
     # Load all data
     raw_data = np.load('../data/cifar100_raw.npz')
@@ -58,7 +59,7 @@ def plot_tsne_comparison(save_path):
     cmap = plt.cm.get_cmap('tab20')
     
     for idx, (name, features) in enumerate(data_dict.items()):
-        print(f"  Computing t-SNE for {name}...")
+        print(f"  Computing t-SNE for {name} ")
         tsne = TSNE(n_components=2, perplexity=TSNE_PERPLEXITY, 
                    n_iter=TSNE_N_ITER, random_state=RANDOM_SEED)
         embedded = tsne.fit_transform(features)
@@ -312,14 +313,12 @@ def main():
     create_comparison_plots(all_results, '../results/comparison_plots.png')
     
     # 2. Create summary table
-    print("\n[2/4] Creating summary table...")
+    print("\n[2/4] Creating summary table ")
     create_summary_table(all_results, '../results/summary_table.png')
     
     # 3. t-SNE Visualization
     # if input("Do you want to regenerate TSNE chart (takes a min): Yes or No").upper() == "YES":
-    #     plot_tsne_comparison('../results/tsne_comparison.png')
     plot_tsne_comparison('../results/tsne_comparison.png')
-    
 
 if __name__ == "__main__":
     main()

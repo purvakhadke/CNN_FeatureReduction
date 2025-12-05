@@ -69,7 +69,7 @@ class ResNetClassifier:
             train_features = torch.stack([normalize(resize(img)) for img in train_features])
             test_features = torch.stack([normalize(resize(img)) for img in test_features])
         else:
-            # else theyre already flattened
+            # else they are already flattened
             train_features = torch.from_numpy(data['train_features']).float()
             test_features = torch.from_numpy(data['test_features']).float()
         
